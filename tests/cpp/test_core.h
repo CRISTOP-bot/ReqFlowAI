@@ -131,9 +131,9 @@ private slots:
         request.insert(QStringLiteral("name"), QStringLiteral("Health"));
         request.insert(QStringLiteral("method"), QStringLiteral("GET"));
         request.insert(QStringLiteral("url"), QStringLiteral("https://example.test/health"));
-        request.insert(QStringLiteral("params"), QString{}); request.insert(QStringLiteral("headers"), QString{}); request.insert(QStringLiteral("body"), QString{});
+        request.insert(QStringLiteral("params"), QStringLiteral("")); request.insert(QStringLiteral("headers"), QStringLiteral("")); request.insert(QStringLiteral("body"), QStringLiteral(""));
         const qint64 requestId = store.saveRequest(project, -1, request);
-        QVERIFY(requestId > 0);
+        QVERIFY2(requestId > 0, qPrintable(store.lastError()));
         QCOMPARE(store.requests(project).size(), 1);
         request.insert(QStringLiteral("name"), QStringLiteral("Health v2"));
         QCOMPARE(store.saveRequest(project, requestId, request), requestId);
