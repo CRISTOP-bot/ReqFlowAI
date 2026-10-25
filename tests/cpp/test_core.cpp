@@ -109,9 +109,7 @@ private slots:
         QVERIFY2(imported.error.isEmpty(), qPrintable(imported.error));
         QCOMPARE(imported.requests.size(), 1);
         QCOMPARE(imported.requests.first().name, QStringLiteral("Health check"));
-        QVERIFY(std::any_of(imported.warnings.cbegin(), imported.warnings.cend(), [](const QString &warning) {
-            return warning.contains(QStringLiteral("referencia $ref externa, transitiva o no resoluble"));
-        }));
+        QVERIFY(imported.warnings.join(QLatin1Char('\n')).contains(QStringLiteral("referencia $ref externa, transitiva o no resoluble")));
     }
 
     void openApiImporterRejectsInvalidDocumentsAndParsesYaml() {
