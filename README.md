@@ -20,6 +20,10 @@ Los GIF son vistas previas animadas para que se reproduzcan directamente en GitH
 
 ---
 
+## Documentación para desarrolladores
+
+Consulta el [índice de documentación](docs/INDEX.md), la [arquitectura](docs/ARCHITECTURE.md), las [funciones y su estado](docs/FEATURES.md), el [modelo de datos](docs/DATA_MODEL.md), la [guía de seguridad](docs/SECURITY.md) y las [instrucciones de desarrollo y pruebas](docs/DEVELOPMENT.md). Las reglas de contribución están en [AGENT.md](AGENT.md) y exigen documentar **todo** cambio antes de darlo por terminado.
+
 ## Estado real
 
 ### Beta experimental (en desarrollo)
