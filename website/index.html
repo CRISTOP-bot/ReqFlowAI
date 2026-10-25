@@ -43,6 +43,18 @@
     .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--ink); text-decoration: none; font-weight: 760; letter-spacing: -.035em; }
     .mark { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 auto; background: var(--ink); color: var(--white); border-radius: 9px; font-size: .82rem; letter-spacing: -.02em; }
     .nav-note { color: var(--muted); font-size: .9rem; }
+    .nav-links { display: flex; align-items: center; gap: 20px; }
+    .nav-links a { color: var(--body); text-decoration: none; font-size: .9rem; font-weight: 620; }
+    .nav-links a:hover { color: var(--accent); text-decoration: underline; }
+    .section-kicker { margin: 0 0 10px; color: var(--accent); font-size: .76rem; font-weight: 760; letter-spacing: .13em; text-transform: uppercase; }
+    .feature { display: flex; flex-direction: column; align-items: flex-start; min-height: 180px; }
+    .feature-tag { display: inline-block; margin-top: auto; padding: 4px 9px; background: var(--accent-soft); color: #633a2a; border-radius: 99px; font-size: .76rem; font-weight: 700; }
+    .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; counter-reset: step; }
+    .step { position: relative; padding: 22px; background: var(--white); border: 1px solid var(--line); border-radius: 8px; counter-increment: step; }
+    .step::before { content: "0" counter(step); display: block; margin-bottom: 14px; color: var(--accent); font-size: .8rem; font-weight: 800; letter-spacing: .12em; }
+    .step h3 { margin: 0 0 7px; font-size: 1rem; }
+    .step p { margin: 0; color: var(--body); font-size: .94rem; }
+    .status-note { margin-top: 22px; padding: 14px 17px; border-left: 3px solid var(--ink); background: #ebe9e5; color: var(--body); font-size: .92rem; }
     .hero { padding-block: clamp(58px, 9vw, 102px) clamp(54px, 7vw, 80px); display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr); gap: clamp(32px, 6vw, 76px); align-items: center; }
     .eyebrow { margin: 0; color: var(--accent); text-transform: uppercase; letter-spacing: .14em; font-size: .76rem; line-height: 1.4; font-weight: 760; }
     h1 { max-width: 760px; margin: 17px 0 20px; font-size: clamp(2.55rem, 5.8vw, 4.65rem); line-height: 1.04; letter-spacing: -.067em; text-wrap: balance; }
@@ -85,7 +97,13 @@
       body { font-size: 15.5px; }
       .wrap { width: calc(100% - 32px); }
       .topbar { padding-block: 14px; }
+      .nav-links { gap: 10px; }
+      .nav-links a { font-size: .78rem; }
+      .steps { grid-template-columns: 1fr; }
+      .step { padding: 19px; }
       .nav-note { display: none; }
+      .nav-links { gap: 12px; }
+      .nav-links a { font-size: .82rem; }
       .hero { padding-block: 48px 46px; }
       h1 { font-size: clamp(2.35rem, 12vw, 3.25rem); }
       .actions { align-items: stretch; }
@@ -107,6 +125,7 @@
     <div class="wrap nav">
       <a class="brand" href="#inicio" aria-label="ReqFlow AI, inicio"><span class="mark" aria-hidden="true">RF</span><span>ReqFlow AI</span></a>
       <span class="nav-note">Herramientas API · escritorio · local-first</span>
+      <nav class="nav-links" aria-label="Navegación principal"><a href="#capacidades">Capacidades</a><a href="#descargas">Descargas</a><a href="https://github.com/CRISTOP-bot/ReqFlowAI">GitHub</a></nav>
     </div>
   </header>
   <main id="contenido">
@@ -133,9 +152,25 @@
         <h2 id="funciones">Hecho para el trabajo cotidiano con APIs</h2>
         <p class="section-intro">Un escritorio local-first que reúne herramientas prácticas para preparar solicitudes, conservar el contexto del proyecto y recorrer automatizaciones sin perder de vista el estado real de cada función.</p>
         <div class="grid">
-          <article class="feature"><h3>Peticiones HTTP</h3><p>Prepara métodos, URL, cabeceras y cuerpo en una interfaz de escritorio Qt.</p></article>
-          <article class="feature"><h3>Proyectos locales</h3><p>Organiza peticiones, historial y entornos en SQLite en tu equipo.</p></article>
-          <article class="feature"><h3>Flujos visuales</h3><p>Construye flujos de API con nodos de petición, transformación y condición.</p></article>
+          <article class="feature"><h3>Cliente HTTP</h3><p>Configura métodos, URL, parámetros, cabeceras y cuerpo para tus solicitudes.</p><span class="feature-tag">Interfaz de escritorio</span></article>
+          <article class="feature"><h3>Proyectos e historial</h3><p>Guarda localmente peticiones, entornos, historial y suites con SQLite.</p><span class="feature-tag">Almacenamiento local</span></article>
+          <article class="feature"><h3>Flujos de API</h3><p>El proyecto incluye un editor visual y un motor de flujos; sus límites siguen en desarrollo.</p><span class="feature-tag">En desarrollo</span></article>
+          <article class="feature"><h3>Importación OpenAPI</h3><p>Importa un subconjunto de OpenAPI 3.x en JSON o YAML; las referencias admitidas son limitadas.</p><span class="feature-tag">Soporte parcial</span></article>
+          <article class="feature"><h3>Suites y respuestas</h3><p>Incluye aserciones y herramientas para inspeccionar respuestas HTTP y JSON.</p><span class="feature-tag">Revisar estado en docs</span></article>
+          <article class="feature"><h3>Comparación JSON</h3><p>Compara dos respuestas del historial por rutas JSON. No compara texto, XML ni esquemas OpenAPI.</p><span class="feature-tag">Beta experimental</span></article>
+        </div>
+        <p class="status-note"><strong>Transparencia:</strong> estas capacidades se describen en el código y la documentación de la rama <strong>dev</strong>. El último build de Linux falló, así que no se deben tomar como una versión ejecutable ya verificada. Consulta el inventario y el estado de CI antes de usarla.</p>
+      </div>
+    </section>
+    <section class="section" id="primeros-pasos" aria-labelledby="pasos-titulo">
+      <div class="wrap">
+        <p class="section-kicker">Empieza aquí</p>
+        <h2 id="pasos-titulo">Explora el proyecto en tres pasos</h2>
+        <p class="section-intro">El repositorio es la fuente para revisar el código, las instrucciones de desarrollo y qué funciones ya están listas.</p>
+        <div class="steps">
+          <article class="step"><h3>Obtén las fuentes</h3><p>Descarga el ZIP de la rama dev. Es código fuente, no un programa instalable.</p></article>
+          <article class="step"><h3>Revisa el estado</h3><p>Consulta las funciones documentadas, las limitaciones y las pruebas realmente ejecutadas.</p></article>
+          <article class="step"><h3>Sigue el desarrollo</h3><p>Revisa los cambios y ejecuciones de compilación en GitHub antes de probar una build.</p></article>
         </div>
       </div>
     </section>
@@ -153,6 +188,7 @@
           <a href="https://github.com/CRISTOP-bot/ReqFlowAI/releases">Releases</a>
           <a href="https://github.com/CRISTOP-bot/ReqFlowAI/blob/dev/docs/FEATURES.md">Funciones y estado</a>
           <a href="https://github.com/CRISTOP-bot/ReqFlowAI/blob/dev/docs/DEVELOPMENT.md">Desarrollo y pruebas</a>
+          <a href="https://github.com/CRISTOP-bot/ReqFlowAI/actions">Compilación y CI</a>
         </nav>
       </div>
     </section>
