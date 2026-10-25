@@ -202,8 +202,8 @@ private slots:
         const QString secretsEnvironmentJson = QStringLiteral("{\"api_token\":\"no\"}");
         const qint64 secretsEnvironment = store.saveEnvironment(project, -1, QStringLiteral("Secrets"), secretsEnvironmentJson);
         QVERIFY(secretsEnvironment < 0);
-        const qint64 suiteId = store.saveAssertionSuite(project, -1, QStringLiteral("Basic"), -1,
-            QString::fromUtf8(R"([{"type":"status","expected":"200"}])"));
+        const QString basicSuiteJson = QStringLiteral("[{\"type\":\"status\",\"expected\":\"200\"}]");
+        const qint64 suiteId = store.saveAssertionSuite(project, -1, QStringLiteral("Basic"), -1, basicSuiteJson);
         QVERIFY(suiteId > 0);
         QCOMPARE(store.assertionSuites(project).size(), 1);
         QVERIFY(store.addAssertionRun(suiteId, QStringLiteral("passed"), QStringLiteral("[]")) > 0);
