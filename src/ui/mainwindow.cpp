@@ -2,9 +2,11 @@
 #include "reqflow/flow/floweditor.h"
 #include "reqflow/data/environment.h"
 #include "reqflow/openapi/openapiimporter.h"
+#include "reqflow/testing/jsondiff.h"
 #include "reqflow/testing/assertions.h"
 
 #include <QAbstractItemView>
+#include <QColor>
 #include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -38,6 +40,10 @@
 #include <QUrlQuery>
 #include <QJsonArray>
 #include <QJsonValue>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <QTableWidget>
+#include <QDialogButtonBox>
 
 namespace reqflow::ui {
 namespace {
@@ -178,11 +184,19 @@ void MainWindow::buildUi() {
     bodyEdit_ = body.second; requestTabs->addTab(body.first, QStringLiteral("Cuerpo"));
     requestLayout->addWidget(requestTabs, 3);
 
-    requestLayout->addWidget(new QLabel(QStringLiteral("Historial reciente (doble clic para revisar)")));
+    auto *historyHeader = new QHBoxLayout;
+    auto *historyTitle = new QLabel(QStringLiteral("Historial reciente (doble clic para revisar)"));
+    historyHeader->addWidget(historyTitle, 1);
+    auto *compareButton = new QPushButton(QStringLiteral("Comparar seleccionadas · BETA"));
+    compareButton->setToolTip(QStringLiteral("Compara el JSON de dos respuestas seleccionadas del historial; no realiza solicitudes de red."));
+    historyHeader->addWidget(compareButton);
+    requestLayout->addLayout(historyHeader);
+    connect(compareButton, &QPushButton::clicked, this, &MainWindow::compareHistoryResponses);
     historyTable_ = new QTableWidget(0, 4);
     historyTable_->setHorizontalHeaderLabels({QStringLiteral("Método"), QStringLiteral("Estado"), QStringLiteral("Duración"), QStringLiteral("Petición")});
     historyTable_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
     historyTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    historyTable_->setSelectionMode(QAbstractItemView::ExtendedSelection);
     historyTable_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     requestLayout->addWidget(historyTable_, 1);
     connect(historyTable_, &QTableWidget::doubleClicked, this, &MainWindow::showHistory);
@@ -704,6 +718,60 @@ void MainWindow::findInResponse() {
     }
     responseBody_->setFocus();
     statusLabel_->setText(QStringLiteral("Coincidencia encontrada en el cuerpo de la respuesta."));
+}
+
+void MainWindow::compareHistoryResponses() {
+    const auto selectedRows = historyTable_->selectionModel()->selectedRows();
+    if (selectedRows.size() != 2) {
+        QMessageBox::information(this, QStringLiteral("Selecciona dos respuestas"), QStringLiteral("Selecciona exactamente dos filas del historial (Ctrl/Cmd + clic) y vuelve a comparar."));
+        return;
+    }
+    qint64 firstId=-1, secondId=-1;
+    for (const auto &item : {historyTable_->item(selectedRows.at(0).row(),3), historyTable_->item(selectedRows.at(1).row(),3)}) {
+        if (!item) continue;
+        if (firstId < 0) firstId=item->data(Qt::UserRole).toLongLong(); else secondId=item->data(Qt::UserRole).toLongLong();
+    }
+    if(firstId<0||secondId<0||firstId==secondId){QMessageBox::warning(this,QStringLiteral("No se pudieron identificar"),QStringLiteral("No pude cargar las dos entradas seleccionadas."));return;}
+    QVariantMap first,second;
+    for(const auto &item:store_.history(projectId_,1000)){
+        const qint64 id=item.value(QStringLiteral("id")).toLongLong();
+        if(id==firstId)first=item;else if(id==secondId)second=item;
+    }
+    if(first.isEmpty()||second.isEmpty()){QMessageBox::warning(this,QStringLiteral("Historial no disponible"),QStringLiteral("Una de las respuestas ya no está disponible en el historial reciente."));return;}
+    // Keep visual order chronological regardless of click order.
+    if(first.value(QStringLiteral("id")).toLongLong()>second.value(QStringLiteral("id")).toLongLong())std::swap(first,second);
+    QDialog dialog(this);dialog.setWindowTitle(QStringLiteral("Comparar respuestas · BETA"));dialog.resize(860,580);
+    auto *layout=new QVBoxLayout(&dialog);
+    auto *description=new QLabel(QStringLiteral("Comparación local del historial. No se envían nuevas solicitudes."));description->setWordWrap(true);layout->addWidget(description);
+    auto *meta=new QLabel;meta->setWordWrap(true);
+    meta->setText(QStringLiteral("Anterior: %1 %2 · HTTP %3 · %4 ms\nPosterior: %5 %6 · HTTP %7 · %8 ms")
+        .arg(first.value(QStringLiteral("method")).toString(),first.value(QStringLiteral("url")).toString(),first.value(QStringLiteral("status")).toString(),QString::number(first.value(QStringLiteral("elapsed_ms")).toLongLong()),
+             second.value(QStringLiteral("method")).toString(),second.value(QStringLiteral("url")).toString(),second.value(QStringLiteral("status")).toString(),QString::number(second.value(QStringLiteral("elapsed_ms")).toLongLong())));
+    layout->addWidget(meta);
+    QJsonParseError beforeError,afterError;
+    const auto beforeDoc=QJsonDocument::fromJson(first.value(QStringLiteral("response_body")).toString().toUtf8(),&beforeError);
+    const auto afterDoc=QJsonDocument::fromJson(second.value(QStringLiteral("response_body")).toString().toUtf8(),&afterError);
+    auto *table=new QTableWidget(0,4,&dialog);table->setHorizontalHeaderLabels({QStringLiteral("Tipo"),QStringLiteral("Ruta JSON"),QStringLiteral("Anterior"),QStringLiteral("Posterior")});
+    table->horizontalHeader()->setSectionResizeMode(1,QHeaderView::ResizeToContents);table->horizontalHeader()->setSectionResizeMode(2,QHeaderView::Stretch);table->horizontalHeader()->setSectionResizeMode(3,QHeaderView::Stretch);table->setWordWrap(true);table->setTextElideMode(Qt::ElideMiddle);
+    QString limitation;
+    if(!beforeDoc.isNull()&&!afterDoc.isNull()){
+        const QJsonValue before=beforeDoc.isObject()?QJsonValue(beforeDoc.object()):QJsonValue(beforeDoc.array());
+        const QJsonValue after=afterDoc.isObject()?QJsonValue(afterDoc.object()):QJsonValue(afterDoc.array());
+        const auto diff=testing::compareJson(before,after,2000,48);
+        for(const auto &change:diff.changes){const int row=table->rowCount();table->insertRow(row);
+            const QString kind=testing::jsonChangeKindName(change.kind);auto *type=new QTableWidgetItem(kind);type->setForeground(change.kind==testing::JsonChangeKind::Added?QColor(129,164,131):change.kind==testing::JsonChangeKind::Removed?QColor(198,135,119):QColor(198,173,124));
+            table->setItem(row,0,type);table->setItem(row,1,new QTableWidgetItem(change.path));table->setItem(row,2,new QTableWidgetItem(testing::jsonValueForDiff(change.before)));table->setItem(row,3,new QTableWidgetItem(testing::jsonValueForDiff(change.after)));
+        }
+        if(diff.truncated)limitation=QStringLiteral("La comparación se limitó a 2000 cambios y 48 niveles por seguridad.");
+        else if(diff.changes.isEmpty())limitation=QStringLiteral("No hay diferencias en los cuerpos JSON guardados.");
+    } else {
+        limitation=QStringLiteral("No se pudo comparar el cuerpo como JSON (puede ser texto omitido por la redacción segura del historial). La comparación de estado HTTP y duración sigue disponible arriba.");
+    }
+    if(table->rowCount()==0)table->setRowCount(1),table->setItem(0,0,new QTableWidgetItem(QStringLiteral("Sin diferencias"))),table->setItem(0,1,new QTableWidgetItem(limitation));
+    layout->addWidget(table,1);
+    if(!limitation.isEmpty()&&table->rowCount()>0&&table->item(0,0)->text()!=QStringLiteral("Sin diferencias")){auto *note=new QLabel(limitation);note->setWordWrap(true);layout->addWidget(note);}
+    auto *close=new QDialogButtonBox(QDialogButtonBox::Close,&dialog);connect(close,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);connect(close,&QDialogButtonBox::accepted,&dialog,&QDialog::accept);layout->addWidget(close);
+    dialog.exec();
 }
 
 void MainWindow::showHistory(const QModelIndex &index) {

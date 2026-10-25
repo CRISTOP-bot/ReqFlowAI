@@ -22,6 +22,10 @@ Los GIF son vistas previas animadas para que se reproduzcan directamente en GitH
 
 ## Estado real
 
+### Beta experimental (en desarrollo)
+
+- **Comparador de respuestas JSON del historial**: selecciona dos ejecuciones guardadas y compara los cuerpos JSON localmente, mostrando rutas con cambios añadidos, eliminados o modificados; también enseña estado HTTP y duración de cada ejecución. No hace solicitudes de red. La comparación está limitada a 2000 cambios y 48 niveles, y depende de los cuerpos que el historial haya conservado tras su redacción segura. Integrado en el historial como «Comparar seleccionadas · BETA»; requiere seleccionar exactamente dos filas. Añadida prueba Qt Test. Pendiente de compilar y ejecutar en entorno con CMake/Qt.
+
 ### Implementado en C++/Qt
 
 - Ventana Qt Widgets con editor de peticiones, proyectos y respuesta.

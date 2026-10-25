@@ -40,6 +40,7 @@ private:
     void refreshProjects();
     void refreshRequests();
     void showHistory(const QModelIndex &index);
+    void compareHistoryResponses();
     void populateJsonTree(const QString &jsonText);
     void findInResponse();
     [[nodiscard]] QString redactResponseBody(const QByteArray &body) const;

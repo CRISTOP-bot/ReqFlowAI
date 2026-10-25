@@ -4,6 +4,7 @@
 #include "reqflow/network/httpclient.h"
 #include "reqflow/openapi/openapiimporter.h"
 #include "reqflow/testing/assertions.h"
+#include "reqflow/testing/jsondiff.h"
 
 #include <QJsonArray>
 #include <QJsonObject>
@@ -96,6 +97,23 @@ private slots:
         for (const auto &result : results) QVERIFY2(result.passed, qPrintable(result.name + QStringLiteral(": ") + result.actual));
         const auto missing = reqflow::testing::evaluateAssertions(QJsonArray{QJsonObject{{QStringLiteral("type"), QStringLiteral("json_value")}, {QStringLiteral("path"), QStringLiteral("$.missing")}, {QStringLiteral("expected"), QStringLiteral("x")}}}, response);
         QVERIFY(!missing.first().passed);
+    }
+
+    void jsonDiffReportsAddedRemovedModifiedAndLimits() {
+        const QJsonObject before{{QStringLiteral("name"),QStringLiteral("Alex")},{QStringLiteral("age"),30},{QStringLiteral("active"),true},{QStringLiteral("items"),QJsonArray{1,2}}};
+        const QJsonObject after{{QStringLiteral("name"),QStringLiteral("Alexandra")},{QStringLiteral("age"),30},{QStringLiteral("city"),QStringLiteral("Pánuco")},{QStringLiteral("items"),QJsonArray{1,3,4}}};
+        const auto diff=reqflow::testing::compareJson(before,after);
+        QStringList paths;for(const auto &change:diff.changes)paths.append(change.path);
+        QVERIFY(paths.contains(QStringLiteral("$.name")));
+        QVERIFY(paths.contains(QStringLiteral("$.active")));
+        QVERIFY(paths.contains(QStringLiteral("$.city")));
+        QVERIFY(paths.contains(QStringLiteral("$.items[1]")));
+        QVERIFY(paths.contains(QStringLiteral("$.items[2]")));
+        QCOMPARE(diff.changes.size(),5);
+        const auto limited=reqflow::testing::compareJson(before,after,2,48);
+        QCOMPARE(limited.changes.size(),2);QVERIFY(limited.truncated);
+        const auto unchanged=reqflow::testing::compareJson(before,before);
+        QVERIFY(unchanged.changes.isEmpty());QVERIFY(!unchanged.truncated);
     }
 
     void sqliteProjectRequestEnvironmentAndSecretFiltering() {

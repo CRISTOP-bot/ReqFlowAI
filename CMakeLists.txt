@@ -19,6 +19,7 @@ add_executable(reqflow-ai
     src/flow/floweditor.cpp
     src/openapi/openapiimporter.cpp
     src/testing/assertions.cpp
+    src/testing/jsondiff.cpp
     src/ui/mainwindow.cpp
     include/reqflow/network/httpclient.h
     include/reqflow/data/projectstore.h
@@ -28,6 +29,7 @@ add_executable(reqflow-ai
     include/reqflow/flow/flowgraphics.h
     include/reqflow/openapi/openapiimporter.h
     include/reqflow/testing/assertions.h
+    include/reqflow/testing/jsondiff.h
     include/reqflow/ui/mainwindow.h
 )
 target_include_directories(reqflow-ai PRIVATE include)
@@ -45,7 +47,9 @@ if(BUILD_TESTING)
             src/flow/flowengine.cpp
             src/openapi/openapiimporter.cpp
             src/testing/assertions.cpp
+            src/testing/jsondiff.cpp
             include/reqflow/testing/assertions.h
+            include/reqflow/testing/jsondiff.h
             include/reqflow/flow/flowengine.h
             include/reqflow/openapi/openapiimporter.h
             include/reqflow/network/httpclient.h
