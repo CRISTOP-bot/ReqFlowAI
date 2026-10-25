@@ -3,6 +3,8 @@
 #include <QElapsedTimer>
 #include <QTimer>
 
+#include <memory>
+
 namespace reqflow::network {
 
 QByteArray HttpResponse::header(const QByteArray &name) const {
@@ -48,7 +50,7 @@ QNetworkReply *HttpClient::send(const HttpRequest &request) {
     activeReplies_.append(reply);
     connect(timeoutTimer, &QTimer::timeout, reply, [reply] { reply->setProperty("reqflowTimedOut", true); reply->abort(); });
     connect(reply, &QNetworkReply::finished, timeoutTimer, &QObject::deleteLater);
-    auto *timer = new QElapsedTimer;
+    const auto timer = std::make_shared<QElapsedTimer>();
     timer->start();
     connect(reply, &QNetworkReply::finished, this, [this, reply, timer] {
         HttpResponse response;
@@ -65,7 +67,6 @@ QNetworkReply *HttpClient::send(const HttpRequest &request) {
         for (const auto &header : rawHeaders)
             response.headers.append(qMakePair(header.first, header.second));
         activeReplies_.removeAll(reply);
-        timer->deleteLater();
         reply->deleteLater();
         emit finished(response);
     });
