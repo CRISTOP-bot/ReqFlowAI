@@ -59,7 +59,7 @@ cmake --build build --parallel
 
 ### Compilación automática para Linux
 
-Cada push a `main` o `dev` compila la aplicación y los tests Qt en Ubuntu 24.04, y ejecuta CTest. Los pushes exitosos a `main` publican una pre-release automatizada con identificador de commit; las etiquetas `v*` publican una release normal. Ambas adjuntan un paquete `.deb` para Ubuntu 24.04 y `reqflow-ai-linux.tar.gz`. El `.deb` instala la app, añade un acceso al menú y declara sus dependencias; instala el paquete con el instalador de software de Ubuntu o con `sudo apt install ./reqflow-ai_*.deb`. Las pre-releases CI no son versiones estables. El tarball portátil sigue requiriendo las bibliotecas de runtime Qt 6 del sistema.
+Cada push a `main` o `dev` compila la aplicación y los tests Qt en Ubuntu 24.04, y ejecuta CTest. Los pushes exitosos a `main` publican una pre-release automatizada con identificador de commit; las etiquetas `v*` publican una release normal. Ambas adjuntan un `.deb` para Debian/Ubuntu, un `.rpm` para Fedora y un `.pkg.tar.zst` para Arch, además de `reqflow-ai-linux.tar.gz`. Los paquetes instalan la app y añaden un acceso al menú. Las pre-releases CI no son versiones estables. El tarball no incluye Qt y requiere las bibliotecas Qt 6 del sistema.
 
 Pruebas:
 
@@ -89,15 +89,32 @@ Consulta [docs/SECURITY.md](docs/SECURITY.md) para conocer el límite de protecc
 
 ## Releases y artefactos Linux
 
-GitHub Actions compila la aplicación y ejecuta Qt Test/CTest antes de empaquetar. Si falla build o test, no se publica el artefacto ni la release. Un push exitoso a `main` publica una **pre-release CI** con tag `ci-<sha-corto>`; los pushes de tags `v*` publican releases de versión. En ambos casos se adjuntan `reqflow-ai-linux.tar.gz` y `reqflow-ai_<versión>_amd64.deb` (la versión del `.deb` sigue la versión CMake del proyecto). El tarball es el ejecutable compilado y requiere que el runtime de Qt 6 y sus bibliotecas estén disponibles. La pre-release identificada por commit sirve para probar builds; no es una versión estable.
+GitHub Actions compila la aplicación y ejecuta Qt Test/CTest antes de empaquetar. Si falla build o test, no se publican los paquetes. Un push exitoso a `main` publica una **pre-release CI** identificada por commit; los tags `v*` publican releases de versión. La pre-release CI no es una versión estable. Los paquetes x86_64 se construyen en Ubuntu 24.04, Fedora y Arch Linux y no se declaran universales para otras arquitecturas o distribuciones.
 
 
-### Instalar en Ubuntu 24.04
+### Paquetes para más distribuciones Linux
 
-Descarga el archivo `reqflow-ai_*.deb` de la sección Assets de una release y ábrelo con el instalador de software. También puedes instalarlo desde la carpeta de descargas:
+Las releases incluyen paquetes construidos en CI para:
+
+- Ubuntu 24.04/Debian amd64: `.deb`; instalar con `sudo apt install ./reqflow-ai_*.deb`.
+- Fedora x86_64: `.rpm`; instalar con `sudo dnf install ./reqflow-ai-*.rpm`.
+- Arch Linux x86_64 y derivados: `.pkg.tar.zst`; instalar con `sudo pacman -U ./reqflow-ai-*.pkg.tar.zst`.
+
+La instalación añade la aplicación al menú y usa las bibliotecas Qt del sistema. El tarball `.tar.gz` también está disponible, pero no incluye Qt: requiere instalar las bibliotecas Qt 6 compatibles con tu distribución. Los paquetes no son universales entre arquitecturas; esta publicación de CI construye paquetes amd64/x86_64.
+
+
+### Instalar en Fedora o Arch
+
+En Fedora, descarga el archivo `.rpm` de Assets y ejecuta:
 
 ```sh
-sudo apt install ./reqflow-ai_*.deb
+sudo dnf install ./reqflow-ai-*.rpm
 ```
 
-El paquete instala ReqFlow AI y agrega un lanzador al menú de aplicaciones; APT resuelve las dependencias declaradas. El instalador `.deb` está preparado para Ubuntu 24.04 amd64.
+En Arch Linux o derivados, instala el paquete local `.pkg.tar.zst` así:
+
+```sh
+sudo pacman -U ./reqflow-ai-*.pkg.tar.zst
+```
+
+Ambos paquetes incluyen un lanzador para el menú de aplicaciones y dependen de Qt 6 del sistema.

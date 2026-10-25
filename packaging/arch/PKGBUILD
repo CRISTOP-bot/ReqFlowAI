@@ -1,0 +1,15 @@
+pkgname=reqflow-ai
+pkgver=0.2.0
+pkgrel=1
+pkgdesc='Native desktop HTTP API client'
+arch=('x86_64')
+url='https://github.com/CRISTOP-bot/ReqFlowAI'
+license=('unknown')
+depends=('qt6-base')
+source=('reqflow-ai' 'reqflow-ai.desktop')
+sha256sums=('SKIP' 'SKIP')
+
+package() {
+  install -Dm755 "$srcdir/reqflow-ai" "$pkgdir/usr/bin/reqflow-ai"
+  install -Dm644 "$srcdir/reqflow-ai.desktop" "$pkgdir/usr/share/applications/reqflow-ai.desktop"
+}
