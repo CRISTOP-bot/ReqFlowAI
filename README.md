@@ -28,7 +28,7 @@ Consulta el [índice de documentación](docs/INDEX.md), la [arquitectura](docs/A
 
 ### Beta experimental (en desarrollo)
 
-- **Comparador de respuestas JSON del historial**: selecciona dos ejecuciones guardadas y compara los cuerpos JSON localmente, mostrando rutas con cambios añadidos, eliminados o modificados; también enseña estado HTTP y duración de cada ejecución. No hace solicitudes de red. La comparación está limitada a 2000 cambios y 48 niveles, y depende de los cuerpos que el historial haya conservado tras su redacción segura. Integrado en el historial como «Comparar seleccionadas · BETA»; requiere seleccionar exactamente dos filas. Añadida prueba Qt Test. Pendiente de compilar y ejecutar en entorno con CMake/Qt.
+- **Comparador de respuestas JSON del historial**: selecciona dos ejecuciones guardadas y compara los cuerpos JSON localmente, mostrando rutas con cambios añadidos, eliminados o modificados; también enseña estado HTTP y duración de cada ejecución. No hace solicitudes de red. La comparación está limitada a 2000 cambios y 48 niveles, y depende de los cuerpos que el historial haya conservado tras su redacción segura. Las rutas distinguen claves simples (`$.user.name`) de claves especiales (`$['user.name']`) y escapan comillas y barras invertidas. Los arreglos se comparan por índice. Integrado en el historial como «Comparar seleccionadas · BETA»; requiere seleccionar exactamente dos filas. Hay pruebas Qt Test escritas para cambios, límites y claves especiales; siguen pendientes de compilar y ejecutar en entorno con CMake/Qt.
 
 ### Implementado en C++/Qt
 
@@ -77,7 +77,7 @@ Datos locales en `~/.local/share/reqflow-ai/reqflow.sqlite3`.
 
 ## Verificación de esta entrega
 
-La disponibilidad de herramientas debe comprobarse en el entorno de cada build. En la última revisión del proyecto se intentó configurar con `cmake -S . -B build -DBUILD_TESTING=ON`; falló con `cmake: command not found` (exit code 127), así que no se compiló, no se ejecutó la GUI ni se probaron solicitudes de red. También pasó un escaneo estático con Python de rutas de fuentes/headers citadas por CMake y delimitadores C++; esto no sustituye al compilador. Los tests Qt Test escritos no se ejecutaron. Requiere toolchain C++20, CMake, Qt 6.4+, Qt Test y QSQLITE.
+La disponibilidad de herramientas debe comprobarse en el entorno de cada build. En la revisión del comparador beta del 2026-10-25 se intentó `cmake -S . -B build -DBUILD_TESTING=ON`; falló con `cmake: command not found` (exit code 127), así que no se compiló y los tests Qt Test no se ejecutaron. Pasaron comprobaciones estáticas de referencias de CMake, enlaces Markdown y balance bruto de llaves; no sustituyen al compilador. Requiere toolchain C++20, CMake, Qt 6.4+, Qt Test y QSQLITE.
 
 ## Uso seguro
 

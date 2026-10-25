@@ -116,6 +116,20 @@ private slots:
         QVERIFY(unchanged.changes.isEmpty());QVERIFY(!unchanged.truncated);
     }
 
+    void jsonDiffUsesUnambiguousPathsForSpecialObjectKeys() {
+        const QJsonObject before{{QStringLiteral("user.name"),1},{QStringLiteral("quote'key"),2},{QStringLiteral("slash\\\\key"),3},
+                                 {QStringLiteral("user"),QJsonObject{{QStringLiteral("name"),QStringLiteral("Alex")}}}};
+        const QJsonObject after{{QStringLiteral("user.name"),4},{QStringLiteral("quote'key"),5},{QStringLiteral("slash\\\\key"),6},
+                                {QStringLiteral("user"),QJsonObject{{QStringLiteral("name"),QStringLiteral("Sam")}}}};
+        const auto diff=reqflow::testing::compareJson(before,after);
+        QStringList paths;for(const auto &change:diff.changes)paths.append(change.path);
+        QVERIFY(paths.contains(QStringLiteral("$['user.name']")));
+        QVERIFY(paths.contains(QStringLiteral("$['quote\\'key']")));
+        QVERIFY(paths.contains(QStringLiteral("$['slash\\\\\\\\key']")));
+        QVERIFY(paths.contains(QStringLiteral("$.user.name")));
+        QCOMPARE(paths.size(),4);
+    }
+
     void sqliteProjectRequestEnvironmentAndSecretFiltering() {
         QTemporaryDir directory;
         QVERIFY(directory.isValid());

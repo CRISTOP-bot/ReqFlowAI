@@ -4,20 +4,24 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QSet>
+#include <QRegularExpression>
 #include <algorithm>
 
 namespace reqflow::testing {
 namespace {
-QString escapeSegment(QString segment) {
-    segment.replace(QLatin1Char('~'), QStringLiteral("~0"));
-    segment.replace(QLatin1Char('/'), QStringLiteral("~1"));
-    return segment;
+QString escapeSegment(const QString &segment) {
+    static const QRegularExpression simpleKey(QStringLiteral("^[A-Za-z_][A-Za-z0-9_-]*$"));
+    if (simpleKey.match(segment).hasMatch()) return QStringLiteral(".") + segment;
+    QString escaped=segment;
+    escaped.replace(QLatin1Char('\\'),QStringLiteral("\\\\"));
+    escaped.replace(QLatin1Char('\''),QStringLiteral("\\'"));
+    return QStringLiteral("['")+escaped+QStringLiteral("']");
 }
 void walk(const QJsonValue &before, const QJsonValue &after, const QString &path,
           int depth, int maxDepth, int maxChanges, JsonDiffResult *result) {
     if (result->changes.size() >= maxChanges) { result->truncated = true; return; }
     if (depth > maxDepth) {
-        if (before != after) result->changes.append({path.isEmpty()?QStringLiteral("$"):path,JsonChangeKind::Modified,before,after});
+        if (before != after) result->changes.append({path,JsonChangeKind::Modified,before,after});
         result->truncated = true;
         return;
     }
@@ -30,7 +34,7 @@ void walk(const QJsonValue &before, const QJsonValue &after, const QString &path
         QStringList sorted=keys.values(); std::sort(sorted.begin(),sorted.end());
         for(const auto &key:sorted){
             if(result->changes.size()>=maxChanges){result->truncated=true;return;}
-            const QString child=path+QStringLiteral(".")+escapeSegment(key);
+            const QString child=path+escapeSegment(key);
             const bool inBefore=lhs.contains(key), inAfter=rhs.contains(key);
             if(!inBefore)result->changes.append({child,JsonChangeKind::Added,{},rhs.value(key)});
             else if(!inAfter)result->changes.append({child,JsonChangeKind::Removed,lhs.value(key),{}});
@@ -45,7 +49,7 @@ void walk(const QJsonValue &before, const QJsonValue &after, const QString &path
         for(qsizetype i=common;i<lhs.size();++i){if(result->changes.size()>=maxChanges){result->truncated=true;return;}result->changes.append({path+QStringLiteral("[%1]").arg(i),JsonChangeKind::Removed,lhs.at(i),{}});}
         return;
     }
-    result->changes.append({path.isEmpty()?QStringLiteral("$"):path,JsonChangeKind::Modified,before,after});
+    result->changes.append({path,JsonChangeKind::Modified,before,after});
 }
 }
 
@@ -62,6 +66,6 @@ QString jsonChangeKindName(JsonChangeKind kind) {
     return QStringLiteral("Unknown");
 }
 JsonDiffResult compareJson(const QJsonValue &before,const QJsonValue &after,int maxChanges,int maxDepth){
-    JsonDiffResult result;if(maxChanges<1){result.truncated=true;return result;}walk(before,after,QString{},0,qMax(0,maxDepth),maxChanges,&result);return result;
+    JsonDiffResult result;if(maxChanges<1){result.truncated=true;return result;}walk(before,after,QStringLiteral("$"),0,qMax(0,maxDepth),maxChanges,&result);return result;
 }
 } // namespace reqflow::testing
