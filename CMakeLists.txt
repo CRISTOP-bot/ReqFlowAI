@@ -21,6 +21,7 @@ add_executable(reqflow-ai
     src/testing/assertions.cpp
     src/testing/jsondiff.cpp
     src/ui/mainwindow.cpp
+    src/ui/authdialog.cpp
     include/reqflow/network/httpclient.h
     include/reqflow/data/projectstore.h
     include/reqflow/data/environment.h
@@ -31,6 +32,7 @@ add_executable(reqflow-ai
     include/reqflow/testing/assertions.h
     include/reqflow/testing/jsondiff.h
     include/reqflow/ui/mainwindow.h
+    include/reqflow/ui/authdialog.h
 )
 target_include_directories(reqflow-ai PRIVATE include)
 target_link_libraries(reqflow-ai PRIVATE Qt6::Core Qt6::Widgets Qt6::Network Qt6::Sql)

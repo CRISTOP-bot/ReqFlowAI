@@ -105,7 +105,7 @@ void MainWindow::buildUi() {
     title->setTextFormat(Qt::RichText);
     brand->addWidget(title);
     brand->addStretch();
-    brand->addWidget(new QLabel(QStringLiteral("Sin cuenta · Datos en este equipo")));
+    brand->addWidget(new QLabel(QStringLiteral("Cuenta local · Datos en este equipo")));
     outer->addLayout(brand);
 
     auto *projectRow = new QHBoxLayout;

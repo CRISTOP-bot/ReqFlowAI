@@ -6,14 +6,16 @@ La estructura en el repositorio está separada por responsabilidades, aunque la 
 
 ## Componentes
 
-- `src/main.cpp`: punto de entrada de Qt y creación de la ventana principal.
+- `src/main.cpp`: punto de entrada Qt; abre el almacén, ejecuta el gate de autenticación antes de construir/mostrar la ventana principal y termina sin mostrarla si se cancela.
+- `include/reqflow/ui/authdialog.h`, `src/ui/authdialog.cpp`: diálogo modal nativo de alta/login, consistente con carbón/grafito y terracota, con feedback accesible, contraseña oculta y confirmación solo en el primer registro.
+- `ProjectStore` implementa cuenta local sobre SQLite: normalización de usuario, PBKDF2-HMAC-SHA-256 y persistencia de la sal/verificador. El login no implica backend, sincronización o cifrado de base.
 - `include/reqflow/ui/`, `src/ui/`: interfaz Qt Widgets para proyectos, editor HTTP, historial, entornos, suites API, importación OpenAPI y editor de flujos.
 - `include/reqflow/network/`, `src/network/`: cliente HTTP basado en `QNetworkAccessManager`, con señales para resultados asíncronos.
 - `include/reqflow/data/`, `src/data/`: `ProjectStore`, SQLite vía Qt SQL, migración inicial con `CREATE TABLE IF NOT EXISTS` y expansión estricta de plantillas en `environment.cpp`.
 - `include/reqflow/flow/`, `src/flow/`: estructuras, motor de ejecución y editor/canvas visual de flujos.
 - `include/reqflow/openapi/`, `src/openapi/`: parser del subconjunto de OpenAPI JSON que soporta la implementación actual.
 - `include/reqflow/testing/`, `src/testing/`: evaluación de aserciones y comparación de valores JSON.
-- `tests/cpp/test_core.cpp`: pruebas Qt Test de componentes de núcleo; no incluye una prueba interactiva de toda la GUI.
+- `tests/cpp/test_core.cpp`: pruebas Qt Test de componentes de núcleo y de persistencia/autenticación; no incluye una prueba interactiva de toda la GUI.
 
 ## Flujo de una solicitud
 

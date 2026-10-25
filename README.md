@@ -32,6 +32,8 @@ Consulta el [índice de documentación](docs/INDEX.md), la [arquitectura](docs/A
 
 ### Implementado en C++/Qt
 
+- **Login local de aplicación (implementación añadida; beta sin compilar en este entorno)**: en el primer inicio se solicita crear usuario y contraseña; cada apertura posterior valida ambos antes de mostrar la ventana principal. La contraseña se almacena como verificador PBKDF2-HMAC-SHA-256 (Qt 6 `QPasswordDigestor`), sal aleatoria individual de 16 bytes, 600 000 iteraciones y comparación en tiempo constante. Usuario normalizado NFKC/casefold, contraseña de 12–1024 caracteres, confirmación en el alta; cancelar cierra la aplicación sin dejar la ventana principal visible. Es una puerta local de interfaz, no una cuenta web, SSO ni autenticación remota. La compilación y la prueba interactiva quedan pendientes de un entorno C++20/CMake/Qt.
+- **Importante sobre seguridad/recuperación**: la cuenta no cifra la base SQLite ni protege ante quien copie/edite el archivo o tenga acceso al sistema operativo mientras la sesión está abierta. No hay recuperación remota ni alta secundaria ni restablecimiento que borre datos; si olvidas la contraseña, los datos existentes no se recuperan mediante ReqFlow AI. Conserva tu contraseña en un gestor seguro y haz copias de seguridad protegidas.
 - Ventana Qt Widgets con editor de peticiones, proyectos y respuesta.
 - Cliente de red basado en `QNetworkAccessManager`: GET, POST, PUT, PATCH, DELETE, HEAD y OPTIONS; cabeceras, parámetros, cuerpo, timeout y cancelación de respuestas activas en la capa de red.
 - SQLite mediante Qt SQL: proyectos, peticiones guardadas, historial; añadir, editar y eliminar petición.
@@ -77,7 +79,7 @@ Datos locales en `~/.local/share/reqflow-ai/reqflow.sqlite3`.
 
 ## Verificación de esta entrega
 
-La disponibilidad de herramientas debe comprobarse en el entorno de cada build. En la revisión del comparador beta del 2026-10-25 se intentó `cmake -S . -B build -DBUILD_TESTING=ON`; falló con `cmake: command not found` (exit code 127), así que no se compiló y los tests Qt Test no se ejecutaron. Pasaron comprobaciones estáticas de referencias de CMake, enlaces Markdown y balance bruto de llaves; no sustituyen al compilador. Requiere toolchain C++20, CMake, Qt 6.4+, Qt Test y QSQLITE.
+En esta edición de login (2026-10-25), `cmake -S . -B build -DBUILD_TESTING=ON` se intentó y no pudo ejecutarse: `cmake: command not found` (exit code 127); tampoco hay `g++`, `git`, `qmake6` ni `pkg-config` en PATH. No se configuró, compiló ni ejecutó Qt Test. Las pruebas de autenticación están añadidas pero pendientes de ejecución. Las comprobaciones estáticas de referencias CMake/presencia de código no validan sintaxis, build o autenticación. Requiere C++20, CMake, Qt 6.4+, Qt Test y QSQLITE.
 
 ## Uso seguro
 

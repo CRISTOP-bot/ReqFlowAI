@@ -4,6 +4,7 @@ Este archivo es un inventario de capacidades basado en el código actual. Una fu
 
 ## Implementación presente
 
+- **Login local de aplicación (beta, sin build/ejecución verificados en esta entrega)**: alta en primer inicio y autenticación al iniciar después; cuadro modal con estilo grafito/carbón, acento terracota, password enmascarado, confirmación de registro y feedback visible. El gate termina antes de crear/mostrar la ventana principal; cancelar sale. No es autenticación web/remota y no cifra SQLite. Consulta [Seguridad](SECURITY.md) para amenazas y olvido de contraseña.
 - Cliente HTTP de escritorio con métodos GET, POST, PUT, PATCH, DELETE, HEAD y OPTIONS, URL, query params, cabeceras y cuerpo.
 - Proyectos, peticiones guardadas, historial y suites almacenados localmente en SQLite.
 - Entornos locales por proyecto con expansión literal de `{{identificador}}` en URL, parámetros, cabeceras y cuerpo. Los nombres que parecen secretos se rechazan mientras no exista bóveda del sistema.

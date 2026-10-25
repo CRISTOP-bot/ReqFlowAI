@@ -130,6 +130,37 @@ private slots:
         QCOMPARE(paths.size(),4);
     }
 
+    void localAccountUsesPersistentPbkdf2VerifierAndRejectsInvalidCredentials() {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString path = directory.filePath(QStringLiteral("auth.sqlite3"));
+        const QString username = QStringLiteral("  Cristopher  ");
+        const QString password = QStringLiteral("a-strong-local-passphrase-42");
+        {
+            reqflow::data::ProjectStore store(path);
+            QVERIFY2(store.isOpen(), qPrintable(store.lastError()));
+            QVERIFY(!store.hasLocalAccount());
+            QVERIFY(store.localAccountError().isEmpty());
+            QVERIFY(!store.createLocalAccount(QStringLiteral("ab"), password));
+            QVERIFY(!store.createLocalAccount(QStringLiteral("Cristopher"), QStringLiteral("short")));
+            QVERIFY(!store.createLocalAccount(QStringLiteral("Cristopher"), QString(1025, QLatin1Char('x'))));
+            QVERIFY(!store.createLocalAccount(QStringLiteral("bad user"), password));
+            QVERIFY(store.createLocalAccount(username, password));
+            QVERIFY(store.hasLocalAccount());
+            QVERIFY(store.verifyLocalAccount(QStringLiteral("cristopher"), password));
+            QVERIFY(!store.verifyLocalAccount(QStringLiteral("someone-else"), password));
+            QVERIFY(!store.verifyLocalAccount(QStringLiteral("cristopher"), QStringLiteral("wrong-password-123")));
+            QVERIFY(!store.createLocalAccount(QStringLiteral("another"), password));
+            QVERIFY(!store.localAccountError().isEmpty());
+        }
+        {
+            reqflow::data::ProjectStore reopened(path);
+            QVERIFY2(reopened.isOpen(), qPrintable(reopened.lastError()));
+            QVERIFY(reopened.hasLocalAccount());
+            QVERIFY(reopened.verifyLocalAccount(QStringLiteral("CRISTOPHER"), password));
+        }
+    }
+
     void sqliteProjectRequestEnvironmentAndSecretFiltering() {
         QTemporaryDir directory;
         QVERIFY(directory.isValid());

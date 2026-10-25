@@ -2,9 +2,15 @@
 
 ## Principios actuales
 
-- La aplicación es local-first y no tiene cuenta de usuario ni sincronización remota implementada.
+- La aplicación es local-first; ahora incluye una cuenta local de aplicación, pero no identidad de usuario ni sincronización remota implementada.
 - Enviar solicitudes HTTP puede cambiar sistemas externos; la persona debe verificar destino, método, cuerpo y autorización.
 - No debe incluirse información sensible en ejemplos, resultados de pruebas, capturas o reportes.
+
+## Cuenta local de ReqFlow AI
+
+El login es una **barrera local de la interfaz**, no una identidad web, SSO, autenticación remota ni protección del sistema operativo. No hay servidor ni sincronización de credenciales. En primer inicio se registra una sola cuenta; el nombre se normaliza trim/NFKC/casefold, la contraseña tiene un mínimo de 12 y máximo 1024 caracteres. En cada inicio se verifica el secreto mediante PBKDF2-HMAC-SHA-256 (600 000 iteraciones, 32 bytes) con sal aleatoria por cuenta de 16 bytes; el verificador se compara en tiempo constante. La contraseña no se guarda. Los fallos no registran ni imprimen la contraseña y la UI la vacía después del intento. No hay límite de intentos ni defensa frente a fuerza bruta offline sobre una copia de la base: PBKDF2 encarece cada prueba, pero no sustituye controles de acceso del sistema operativo.
+
+**La autenticación no cifra la base SQLite ni protege frente al acceso directo al archivo, copias, modificaciones o malware/usuario con acceso al sistema operativo.** Quien controle el equipo/archivo puede saltarse la pantalla de login y leer/modificar los datos. El bloqueo tampoco borra ni cifra los proyectos. Olvidar la contraseña no tiene recuperación remota ni botón de reinicio destructivo; la aplicación no ofrece forma de recuperar la cuenta y sus datos. No borrar el archivo como supuesto restablecimiento: eso también borraría proyectos e historial. Proteger el dispositivo y respaldar el archivo de manera segura.
 
 ## Credenciales y variables
 

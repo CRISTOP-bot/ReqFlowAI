@@ -7,8 +7,8 @@ Esta documentación describe el estado observado en el código de ReqFlow AI. La
 - [Arquitectura](ARCHITECTURE.md): módulos, dependencias y flujo de una solicitud HTTP.
 - [Funciones y estado](FEATURES.md): qué puede hacer el producto, beta, límites y trabajo pendiente.
 - [Datos y persistencia](DATA_MODEL.md): SQLite, tablas, relaciones, entorno local e historial.
-- [Seguridad y privacidad](SECURITY.md): datos retenidos, redacción, restricciones y amenazas no cubiertas.
-- [Desarrollo y pruebas](DEVELOPMENT.md): requisitos, build, pruebas y evidencia disponible.
+- [Seguridad y privacidad](SECURITY.md): datos retenidos, redacción, cuenta local, límites de protección y amenazas no cubiertas.
+- [Desarrollo y pruebas](DEVELOPMENT.md): requisitos, build, pruebas, cobertura de autenticación y evidencia disponible.
 - [Reglas para agentes y colaboradores](../AGENT.md): obligación de documentar **todo** lo que se cambia y lista de cierre.
 
 ## Convención para mantener esta documentación

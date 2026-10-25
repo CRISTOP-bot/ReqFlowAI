@@ -16,6 +16,10 @@ public:
 
     [[nodiscard]] bool isOpen() const;
     [[nodiscard]] QString lastError() const;
+    [[nodiscard]] bool hasLocalAccount() const;
+    bool createLocalAccount(const QString &username, const QString &password);
+    [[nodiscard]] bool verifyLocalAccount(const QString &username, const QString &password) const;
+    [[nodiscard]] QString localAccountError() const;
     [[nodiscard]] QVector<QVariantMap> projects() const;
     qint64 createProject(const QString &name);
     [[nodiscard]] QVector<QVariantMap> requests(qint64 projectId) const;
@@ -38,6 +42,7 @@ private:
     QSqlDatabase database_;
     QString connectionName_;
     QString lastError_;
+    mutable QString localAccountError_;
 };
 
 } // namespace reqflow::data

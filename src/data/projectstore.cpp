@@ -13,6 +13,10 @@
 #include <QJsonValue>
 #include <QJsonObject>
 #include <QRegularExpression>
+#include <QCryptographicHash>
+#include <QRandomGenerator>
+#include <QByteArray>
+#include <QPasswordDigestor>
 #include <QStringList>
 #include <QUrl>
 #include <QUrlQuery>
@@ -49,6 +53,34 @@ QString safeHistoryHeaders(QString value) {
 
 namespace reqflow::data {
 namespace {
+constexpr int passwordIterations = 600000;
+constexpr int passwordSaltBytes = 16;
+constexpr int passwordVerifierBytes = 32;
+
+QString normalizedUsername(const QString &username) {
+    return username.trimmed().normalized(QString::NormalizationForm_KC).toCaseFolded();
+}
+
+bool validUsername(const QString &username) {
+    if (username.size() < 3 || username.size() > 64) return false;
+    for (const QChar character : username)
+        if (character.isSpace() || character.category() == QChar::Other_Control) return false;
+    return true;
+}
+
+QByteArray derivePasswordVerifier(const QString &password, const QByteArray &salt) {
+    return QPasswordDigestor::deriveKeyPbkdf2(
+        QCryptographicHash::Sha256, password.toUtf8(), salt, passwordIterations, passwordVerifierBytes);
+}
+
+bool constantTimeEqual(const QByteArray &left, const QByteArray &right) {
+    if (left.size() != right.size()) return false;
+    unsigned char difference = 0;
+    for (qsizetype index = 0; index < left.size(); ++index)
+        difference |= static_cast<unsigned char>(left.at(index) ^ right.at(index));
+    return difference == 0;
+}
+
 QVariantMap rowToMap(const QSqlQuery &query) {
     QVariantMap row;
     const QSqlRecord record = query.record();
@@ -86,9 +118,112 @@ ProjectStore::~ProjectStore() {
 bool ProjectStore::isOpen() const { return database_.isOpen() && lastError_.isEmpty(); }
 QString ProjectStore::lastError() const { return lastError_; }
 
+bool ProjectStore::hasLocalAccount() const {
+    localAccountError_.clear();
+    QSqlQuery query(database_);
+    if (!query.exec(QStringLiteral("SELECT 1 FROM local_account WHERE id=1 LIMIT 1"))) {
+        localAccountError_ = query.lastError().text();
+        return false;
+    }
+    return query.next();
+}
+
+bool ProjectStore::createLocalAccount(const QString &username, const QString &password) {
+    localAccountError_.clear();
+    const QString normalized = normalizedUsername(username);
+    if (!validUsername(normalized)) {
+        localAccountError_ = QStringLiteral("El usuario debe tener entre 3 y 64 caracteres, sin espacios ni caracteres de control.");
+        return false;
+    }
+    if (password.size() < 12 || password.size() > 1024) {
+        localAccountError_ = QStringLiteral("La contraseña debe tener entre 12 y 1024 caracteres.");
+        return false;
+    }
+    if (!database_.transaction()) {
+        localAccountError_ = database_.lastError().text();
+        return false;
+    }
+    QSqlQuery query(database_);
+    if (!query.exec(QStringLiteral("SELECT 1 FROM local_account WHERE id=1"))) {
+        localAccountError_ = query.lastError().text();
+        database_.rollback();
+        return false;
+    }
+    if (query.next()) {
+        query.finish();
+        localAccountError_ = QStringLiteral("Ya existe una cuenta local. No se puede registrar otra desde aquí.");
+        database_.rollback();
+        return false;
+    }
+    query.finish();
+    QByteArray salt(passwordSaltBytes, '\0');
+    auto *random = QRandomGenerator::system();
+    for (qsizetype offset = 0; offset < salt.size(); offset += static_cast<qsizetype>(sizeof(quint32))) {
+        const quint32 value = random->generate();
+        const qsizetype count = qMin(static_cast<qsizetype>(sizeof(value)), salt.size() - offset);
+        for (qsizetype byte = 0; byte < count; ++byte)
+            salt[offset + byte] = static_cast<char>((value >> (byte * 8)) & 0xffU);
+    }
+    const QByteArray verifier = derivePasswordVerifier(password, salt);
+    if (verifier.size() != passwordVerifierBytes) {
+        localAccountError_ = QStringLiteral("No se pudo derivar el verificador de contraseña con Qt.");
+        database_.rollback();
+        return false;
+    }
+    QSqlQuery insert(database_);
+    insert.prepare(QStringLiteral("INSERT INTO local_account(id,username,salt,verifier,iterations) VALUES (1,?,?,?,?)"));
+    insert.addBindValue(normalized);
+    insert.addBindValue(salt.toBase64());
+    insert.addBindValue(verifier.toBase64());
+    insert.addBindValue(passwordIterations);
+    if (!insert.exec() || !database_.commit()) {
+        localAccountError_ = insert.lastError().isValid() ? insert.lastError().text() : database_.lastError().text();
+        database_.rollback();
+        return false;
+    }
+    return true;
+}
+
+bool ProjectStore::verifyLocalAccount(const QString &username, const QString &password) const {
+    localAccountError_.clear();
+    if (password.size() > 1024) {
+        localAccountError_ = QStringLiteral("La contraseña no puede superar 1024 caracteres.");
+        return false;
+    }
+    QSqlQuery query(database_);
+    query.prepare(QStringLiteral("SELECT username,salt,verifier,iterations FROM local_account WHERE id=1"));
+    if (!query.exec()) {
+        localAccountError_ = query.lastError().text();
+        return false;
+    }
+    if (!query.next()) {
+        localAccountError_ = QStringLiteral("Todavía no hay una cuenta local registrada.");
+        return false;
+    }
+    const QString storedUsername = query.value(0).toString();
+    const QByteArray salt = QByteArray::fromBase64(query.value(1).toByteArray());
+    const QByteArray expected = QByteArray::fromBase64(query.value(2).toByteArray());
+    const int iterations = query.value(3).toInt();
+    if (salt.size() != passwordSaltBytes || expected.size() != passwordVerifierBytes || iterations != passwordIterations) {
+        localAccountError_ = QStringLiteral("Los datos de autenticación local están dañados o no son compatibles.");
+        return false;
+    }
+    const QByteArray actual = derivePasswordVerifier(password, salt);
+    const bool usernameMatches = normalizedUsername(username) == storedUsername;
+    const bool verifierMatches = constantTimeEqual(actual, expected);
+    if (!(usernameMatches & verifierMatches)) {
+        localAccountError_ = QStringLiteral("El usuario o la contraseña no son correctos.");
+        return false;
+    }
+    return true;
+}
+
+QString ProjectStore::localAccountError() const { return localAccountError_; }
+
 bool ProjectStore::initialize() {
     const QStringList schema = {
         QStringLiteral("PRAGMA foreign_keys=ON"),
+        QStringLiteral("CREATE TABLE IF NOT EXISTS local_account (id INTEGER PRIMARY KEY CHECK(id=1), username TEXT NOT NULL, salt TEXT NOT NULL, verifier TEXT NOT NULL, iterations INTEGER NOT NULL)"),
         QStringLiteral("CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
         QStringLiteral("CREATE TABLE IF NOT EXISTS requests (id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE, name TEXT NOT NULL, method TEXT NOT NULL, url TEXT NOT NULL, params TEXT NOT NULL DEFAULT '', headers TEXT NOT NULL DEFAULT '', body TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
         QStringLiteral("CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE, request_name TEXT NOT NULL, method TEXT NOT NULL, url TEXT NOT NULL, status INTEGER, elapsed_ms REAL NOT NULL, response_size INTEGER NOT NULL, response_headers TEXT NOT NULL, response_body TEXT NOT NULL, error TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
