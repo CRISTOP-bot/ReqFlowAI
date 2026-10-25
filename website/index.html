@@ -10,21 +10,165 @@
   <meta property="og:description" content="Aplicación de escritorio C++20 y Qt 6 para trabajar con APIs. Proyecto en desarrollo.">
   <title>ReqFlow AI — Flujos API, con claridad</title>
   <style>
-    :root{color-scheme:light;--ink:#25282b;--muted:#687078;--paper:#f5f4f1;--white:#fff;--line:#e4e1dc;--accent:#a85f48;--soft:#eee8e3}
-    *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.65 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}a{color:#864833;text-underline-offset:4px}a:hover{color:#603a2e}.wrap{width:min(1080px,calc(100% - 40px));margin:auto}.topbar{padding:20px 0;border-bottom:1px solid var(--line)}.nav{display:flex;justify-content:space-between;align-items:center;gap:20px}.brand{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--ink);font-weight:750;letter-spacing:-.03em}.mark{display:grid;place-items:center;width:34px;height:34px;background:var(--ink);color:white;border-radius:9px;font-size:14px}.nav-note{color:var(--muted);font-size:.9rem}.hero{padding:84px 0 72px;display:grid;grid-template-columns:1.2fr .8fr;gap:56px;align-items:center}.eyebrow{color:#864833;text-transform:uppercase;letter-spacing:.13em;font-size:.76rem;font-weight:750}h1{font-size:clamp(2.6rem,6vw,4.6rem);line-height:1.06;letter-spacing:-.065em;margin:17px 0 22px;max-width:740px}.lede{color:#555d64;font-size:1.13rem;max-width:640px;margin:0 0 28px}.actions{display:flex;flex-wrap:wrap;gap:12px}.button{display:inline-flex;justify-content:center;align-items:center;min-height:46px;padding:10px 17px;border:1px solid var(--ink);border-radius:6px;text-decoration:none;font-weight:650}.primary{background:var(--ink);color:white}.primary:hover{background:#41464a;color:white}.secondary{background:transparent;color:var(--ink)}.secondary:hover{background:white;color:var(--ink)}.card{background:white;border:1px solid var(--line);border-radius:12px;padding:26px;box-shadow:0 14px 38px #25282b0b}.card-label{margin:0 0 16px;color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.11em;font-weight:700}.stat{display:flex;justify-content:space-between;gap:15px;padding:13px 0;border-top:1px solid var(--line)}.stat strong{font-size:.94rem}.stat span{color:var(--muted);text-align:right}.section{padding:60px 0;border-top:1px solid var(--line)}h2{font-size:clamp(1.75rem,3vw,2.5rem);letter-spacing:-.04em;line-height:1.15;margin:0 0 16px}.section-intro{max-width:720px;color:var(--muted);margin:0 0 30px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.feature{background:var(--white);border:1px solid var(--line);border-radius:9px;padding:22px}.feature h3{margin:0 0 8px;font-size:1.02rem}.feature p{margin:0;color:var(--muted);font-size:.94rem}.download{background:#fff;border:1px solid var(--line);border-left:4px solid var(--accent);padding:24px;border-radius:9px}.download h3{margin:0 0 7px}.download p{margin:0 0 18px;color:var(--muted)}.notice{margin-top:20px;background:var(--soft);padding:16px 18px;border-radius:7px;color:#4e4a47;font-size:.92rem}.notice strong{color:var(--ink)}.linkrow{display:flex;flex-wrap:wrap;gap:22px;margin-top:24px}.footer{padding:28px 0 42px;color:var(--muted);font-size:.9rem;border-top:1px solid var(--line)}.foot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}@media(max-width:760px){.hero{grid-template-columns:1fr;gap:30px;padding:58px 0}.grid{grid-template-columns:1fr}.nav-note{display:none}.section{padding:46px 0}}
+    :root {
+      color-scheme: light;
+      --ink: #25282b;
+      --body: #42494f;
+      --muted: #5e666d;
+      --paper: #f5f4f1;
+      --white: #fff;
+      --line: #dedbd5;
+      --accent: #864833;
+      --accent-soft: #f0e7e1;
+      --dark-soft: #34383b;
+      --content: 1120px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 16px/1.65 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-rendering: optimizeLegibility;
+    }
+    a { color: var(--accent); text-underline-offset: .22em; text-decoration-thickness: .08em; }
+    a:hover { color: #603a2e; }
+    a:focus-visible { outline: 3px solid #a85f48; outline-offset: 4px; border-radius: 3px; }
+    .skip-link { position: absolute; left: 12px; top: 12px; z-index: 2; transform: translateY(-180%); padding: 9px 13px; background: var(--white); color: var(--ink); border: 2px solid var(--accent); border-radius: 5px; }
+    .skip-link:focus { transform: translateY(0); }
+    .wrap { width: min(var(--content), calc(100% - 48px)); margin-inline: auto; }
+    .topbar { padding: 17px 0; border-bottom: 1px solid var(--line); }
+    .nav { display: flex; justify-content: space-between; align-items: center; gap: 24px; }
+    .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--ink); text-decoration: none; font-weight: 760; letter-spacing: -.035em; }
+    .mark { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 auto; background: var(--ink); color: var(--white); border-radius: 9px; font-size: .82rem; letter-spacing: -.02em; }
+    .nav-note { color: var(--muted); font-size: .9rem; }
+    .hero { padding-block: clamp(58px, 9vw, 102px) clamp(54px, 7vw, 80px); display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr); gap: clamp(32px, 6vw, 76px); align-items: center; }
+    .eyebrow { margin: 0; color: var(--accent); text-transform: uppercase; letter-spacing: .14em; font-size: .76rem; line-height: 1.4; font-weight: 760; }
+    h1 { max-width: 760px; margin: 17px 0 20px; font-size: clamp(2.55rem, 5.8vw, 4.65rem); line-height: 1.04; letter-spacing: -.067em; text-wrap: balance; }
+    .lede { max-width: 650px; margin: 0 0 28px; color: var(--body); font-size: clamp(1.04rem, 1.5vw, 1.16rem); line-height: 1.72; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+    .button { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; padding: 10px 17px; border: 1px solid var(--ink); border-radius: 6px; color: var(--ink); text-align: center; text-decoration: none; font-weight: 680; line-height: 1.35; transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
+    .button-primary { background: var(--ink); color: var(--white); }
+    .button-primary:hover { background: var(--dark-soft); color: var(--white); }
+    .button-secondary { background: transparent; }
+    .button-secondary:hover { background: var(--white); color: var(--ink); }
+    .card { padding: clamp(22px, 3vw, 30px); background: var(--white); border: 1px solid var(--line); border-radius: 11px; box-shadow: 0 14px 38px rgb(37 40 43 / 5%); }
+    .card-label { margin: 0 0 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .11em; font-size: .77rem; font-weight: 740; }
+    .stat { display: flex; justify-content: space-between; gap: 18px; padding: 13px 0; border-top: 1px solid var(--line); font-size: .93rem; }
+    .stat strong { font-weight: 700; }
+    .stat span { color: var(--body); text-align: right; }
+    .status-unavailable { color: #703b2c !important; font-weight: 700; }
+    .section { padding-block: clamp(46px, 7vw, 72px); border-top: 1px solid var(--line); }
+    h2 { margin: 0 0 14px; font-size: clamp(1.8rem, 3.4vw, 2.55rem); line-height: 1.15; letter-spacing: -.045em; text-wrap: balance; }
+    .section-intro { max-width: 740px; margin: 0 0 30px; color: var(--body); }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    .feature { padding: 22px; background: var(--white); border: 1px solid var(--line); border-radius: 8px; }
+    .feature h3 { margin: 0 0 7px; font-size: 1.02rem; line-height: 1.4; }
+    .feature p { margin: 0; color: var(--body); font-size: .94rem; }
+    .download { padding: clamp(20px, 3vw, 26px); background: var(--white); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; }
+    .download h3 { margin: 0 0 7px; font-size: 1.1rem; }
+    .download p { margin: 0 0 18px; color: var(--body); }
+    .notice { margin-top: 16px; padding: 16px 18px; background: var(--accent-soft); border: 1px solid #e4d5ca; border-radius: 7px; color: #453c37; font-size: .94rem; }
+    .notice strong { color: #633a2a; }
+    .linkrow { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-top: 23px; }
+    .footer { padding: 25px 0 38px; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+    .foot { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px 22px; }
+    @media (max-width: 760px) {
+      .wrap { width: min(var(--content), calc(100% - 36px)); }
+      .hero { grid-template-columns: 1fr; gap: 28px; }
+      .hero-copy { max-width: 680px; }
+      .card { max-width: 600px; }
+      .grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 480px) {
+      body { font-size: 15.5px; }
+      .wrap { width: calc(100% - 32px); }
+      .topbar { padding-block: 14px; }
+      .nav-note { display: none; }
+      .hero { padding-block: 48px 46px; }
+      h1 { font-size: clamp(2.35rem, 12vw, 3.25rem); }
+      .actions { align-items: stretch; }
+      .button { width: 100%; }
+      .stat { gap: 12px; }
+      .section { padding-block: 44px; }
+      .feature { padding: 19px; }
+      .linkrow { gap: 12px 18px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition-duration: .01ms !important; }
+    }
   </style>
 </head>
 <body>
-  <header class="topbar"><div class="wrap nav"><a class="brand" href="#inicio"><span class="mark">RF</span><span>ReqFlow AI</span></a><span class="nav-note">Herramientas API · escritorio · local-first</span></div></header>
-  <main id="inicio">
-    <section class="wrap hero">
-      <div><div class="eyebrow">Un espacio de trabajo para APIs</div><h1>Prueba y organiza tus flujos API con claridad.</h1><p class="lede">ReqFlow AI es una aplicación de escritorio en desarrollo, construida con C++20 y Qt 6. Diseñada para crear peticiones HTTP, guardar proyectos locales y explorar flujos de API.</p><div class="actions"><a class="button primary" href="https://github.com/CRISTOP-bot/ReqFlowAI">Ver el proyecto</a><a class="button secondary" href="https://github.com/CRISTOP-bot/ReqFlowAI/archive/refs/heads/dev.zip">Descargar código fuente (.zip)</a></div></div>
-      <aside class="card"><p class="card-label">Estado del proyecto</p><div class="stat"><strong>Plataforma</strong><span>Linux · build en progreso</span></div><div class="stat"><strong>Tecnología</strong><span>C++20 · Qt 6 · Rust parcial</span></div><div class="stat"><strong>Distribución</strong><span>Proyecto abierto</span></div><div class="stat"><strong>Release binaria</strong><span>No disponible todavía</span></div></aside>
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+  <header class="topbar">
+    <div class="wrap nav">
+      <a class="brand" href="#inicio" aria-label="ReqFlow AI, inicio"><span class="mark" aria-hidden="true">RF</span><span>ReqFlow AI</span></a>
+      <span class="nav-note">Herramientas API · escritorio · local-first</span>
+    </div>
+  </header>
+  <main id="contenido">
+    <section class="wrap hero" id="inicio" aria-labelledby="titulo">
+      <div class="hero-copy">
+        <p class="eyebrow">Un espacio de trabajo para APIs</p>
+        <h1 id="titulo">Prueba y organiza tus flujos API con claridad.</h1>
+        <p class="lede">ReqFlow AI es una aplicación de escritorio en desarrollo, construida con C++20 y Qt 6. Está pensada para crear peticiones HTTP, guardar proyectos locales y explorar flujos de API.</p>
+        <div class="actions">
+          <a class="button button-primary" href="https://github.com/CRISTOP-bot/ReqFlowAI">Ver el proyecto</a>
+          <a class="button button-secondary" href="https://github.com/CRISTOP-bot/ReqFlowAI/archive/refs/heads/dev.zip">Descargar código fuente (.zip)</a>
+        </div>
+      </div>
+      <aside class="card" aria-label="Estado actual del proyecto">
+        <p class="card-label">Estado del proyecto</p>
+        <div class="stat"><strong>Plataforma</strong><span>Linux · build en progreso</span></div>
+        <div class="stat"><strong>Tecnología</strong><span>C++20 · Qt 6 · Rust parcial</span></div>
+        <div class="stat"><strong>Distribución</strong><span>Proyecto abierto</span></div>
+        <div class="stat"><strong>Binario Linux</strong><span class="status-unavailable">No disponible</span></div>
+      </aside>
     </section>
-    <section class="section"><div class="wrap"><h2>Hecho para el trabajo cotidiano con APIs</h2><p class="section-intro">Un escritorio local-first que reúne herramientas prácticas para preparar solicitudes, conservar el contexto del proyecto y recorrer automatizaciones sin perder de vista el estado real de cada función.</p><div class="grid"><article class="feature"><h3>Peticiones HTTP</h3><p>Prepara métodos, URL, cabeceras y cuerpo en una interfaz de escritorio Qt.</p></article><article class="feature"><h3>Proyectos locales</h3><p>Organiza peticiones, historial y entornos en SQLite en tu equipo.</p></article><article class="feature"><h3>Flujos visuales</h3><p>Construye flujos de API con nodos de petición, transformación y condición.</p></article></div></div></section>
-    <section class="section" id="descargas"><div class="wrap"><h2>Descargas</h2><p class="section-intro">Por ahora puedes obtener el código fuente. El ejecutable de Linux aún no está publicado ni verificado, así que no lo presentamos como una descarga disponible.</p><div class="download"><h3>Código fuente — rama dev</h3><p>Archivo ZIP del código actual. No incluye un instalador ni un ejecutable compilado.</p><a class="button primary" href="https://github.com/CRISTOP-bot/ReqFlowAI/archive/refs/heads/dev.zip">Descargar código fuente</a></div><div class="notice"><strong>Binario Linux no disponible todavía.</strong> El workflow de compilación más reciente falló. Puedes revisar el <a href="https://github.com/CRISTOP-bot/ReqFlowAI/actions">estado de compilación en GitHub Actions</a>. Cuando exista una release verificada, aquí se podrá enlazar.</div><div class="linkrow"><a href="https://github.com/CRISTOP-bot/ReqFlowAI/releases">Releases</a><a href="https://github.com/CRISTOP-bot/ReqFlowAI/blob/dev/docs/FEATURES.md">Funciones y estado</a><a href="https://github.com/CRISTOP-bot/ReqFlowAI/blob/dev/docs/DEVELOPMENT.md">Desarrollo y pruebas</a></div></div></section>
-    <section class="section"><div class="wrap"><h2>Un proyecto abierto y en desarrollo</h2><p class="section-intro">La interfaz y sus componentes siguen evolucionando. La detección de secretos usa filtros heurísticos; el login local no cifra la base SQLite. Consulta el repositorio para revisar limitaciones, documentación y cambios recientes.</p><div class="actions"><a class="button primary" href="https://github.com/CRISTOP-bot/ReqFlowAI">Abrir repositorio</a><a class="button secondary" href="https://github.com/CRISTOP-bot/ReqFlowAI/blob/dev/LICENSE">Licencia Apache-2.0</a></div></div></section>
+    <section class="section" aria-labelledby="funciones">
+      <div class="wrap">
+        <h2 id="funciones">Hecho para el trabajo cotidiano con APIs</h2>
+        <p class="section-intro">Un escritorio local-first que reúne herramientas prácticas para preparar solicitudes, conservar el contexto del proyecto y recorrer automatizaciones sin perder de vista el estado real de cada función.</p>
+        <div class="grid">
+          <article class="feature"><h3>Peticiones HTTP</h3><p>Prepara métodos, URL, cabeceras y cuerpo en una interfaz de escritorio Qt.</p></article>
+          <article class="feature"><h3>Proyectos locales</h3><p>Organiza peticiones, historial y entornos en SQLite en tu equipo.</p></article>
+          <article class="feature"><h3>Flujos visuales</h3><p>Construye flujos de API con nodos de petición, transformación y condición.</p></article>
+        </div>
+      </div>
+    </section>
+    <section class="section" id="descargas" aria-labelledby="descargas-titulo">
+      <div class="wrap">
+        <h2 id="descargas-titulo">Descargas</h2>
+        <p class="section-intro">La descarga disponible aquí es el código fuente. No hay un ejecutable ni instalador de Linux publicado y verificado.</p>
+        <div class="download">
+          <h3>Código fuente — rama dev</h3>
+          <p>Archivo ZIP del código actual. Contiene fuentes; no incluye un instalador ni un ejecutable compilado.</p>
+          <a class="button button-primary" href="https://github.com/CRISTOP-bot/ReqFlowAI/archive/refs/heads/dev.zip">Descargar solo código fuente (.zip)</a>
+        </div>
+        <div class="notice"><strong>Binario Linux: no disponible.</strong> El workflow de compilación más reciente falló. Revisa el <a href="https://github.com/CRISTOP-bot/ReqFlowAI/actions">estado de compilación en GitHub Actions</a>. No se ofrece ningún binario hasta que exista una release verificada.</div>
+        <nav class="linkrow" aria-label="Enlaces del proyecto">
+          <a href="https://github.com/CRISTOP-bot/ReqFlowAI/releases">Releases</a>
+          <a href="https://github.com/CRISTOP-bot/ReqFlowAI/blob/dev/docs/FEATURES.md">Funciones y estado</a>
+          <a href="https://github.com/CRISTOP-bot/ReqFlowAI/blob/dev/docs/DEVELOPMENT.md">Desarrollo y pruebas</a>
+        </nav>
+      </div>
+    </section>
+    <section class="section" aria-labelledby="abierto">
+      <div class="wrap">
+        <h2 id="abierto">Un proyecto abierto y en desarrollo</h2>
+        <p class="section-intro">La interfaz y sus componentes siguen evolucionando. La detección de secretos usa filtros heurísticos; el login local no cifra la base SQLite. Consulta el repositorio para revisar limitaciones, documentación y cambios recientes.</p>
+        <div class="actions">
+          <a class="button button-primary" href="https://github.com/CRISTOP-bot/ReqFlowAI">Abrir repositorio</a>
+          <a class="button button-secondary" href="https://github.com/CRISTOP-bot/ReqFlowAI/blob/dev/LICENSE">Licencia Apache-2.0</a>
+        </div>
+      </div>
+    </section>
   </main>
-  <footer class="footer"><div class="wrap foot"><span>ReqFlow AI · Aplicación de escritorio en desarrollo</span><a href="https://github.com/CRISTOP-bot/ReqFlowAI">Código y documentación en GitHub</a></div></footer>
+  <footer class="footer">
+    <div class="wrap foot"><span>ReqFlow AI · Aplicación de escritorio en desarrollo</span><a href="https://github.com/CRISTOP-bot/ReqFlowAI">Código y documentación en GitHub</a></div>
+  </footer>
 </body>
 </html>

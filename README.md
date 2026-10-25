@@ -94,4 +94,4 @@ Enviar una petición puede modificar un servidor. Verifica destino, método y co
 
 ## Sitio web
 
-El sitio estático vive en `website/` y se despliega a GitHub Pages con `.github/workflows/pages.yml` al cambiar esos archivos en `dev`. El repositorio debe tener GitHub Pages habilitado con **GitHub Actions** como origen de despliegue. La URL pública se obtiene del deployment; no se debe adivinar ni dar por activa hasta que el workflow termine correctamente. El sitio enlaza el código fuente y comunica que aún no existe binario Linux verificado.
+El sitio estático vive en `website/` y se despliega a GitHub Pages con `.github/workflows/pages.yml` al cambiar esos archivos en `dev`. GitHub Pages está configurado con **GitHub Actions** como origen de despliegue. La URL pública se obtiene del deployment; no se debe dar por activa hasta que el workflow termine correctamente. El sitio enlaza el código fuente y comunica que aún no existe binario Linux verificado.
