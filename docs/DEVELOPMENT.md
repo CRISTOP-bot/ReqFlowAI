@@ -61,3 +61,8 @@ Un escaneo estático de archivos o delimitadores puede servir de revisión auxil
 ## Contribuciones
 
 Seguir obligatoriamente [AGENT.md](../AGENT.md). **Documentar todo**: README si cambia el uso/estado; documentos temáticos e índice para nuevas áreas; archivos afectados, motivo, limitaciones, pruebas y resultados reales en la entrega. Mantener docs sin afirmaciones basadas solo en intención.
+
+
+## Sitio web en GitHub Pages
+
+La página estática se mantiene en `website/index.html`. `.github/workflows/pages.yml` despliega desde la rama `dev` con GitHub Pages Actions cuando cambia el contenido web o el workflow; también admite ejecución manual. El repositorio público puede usar GitHub Pages con el plan gratuito, pero el propietario debe habilitar Pages usando GitHub Actions como source si aún no se ha configurado. La URL solo se considera activa tras un deploy exitoso y debe leerse del deployment de GitHub Actions. Las descargas disponibles son las que existan realmente como releases; hoy el sitio ofrece el ZIP de código fuente y avisa que el binario Linux no está publicado/validado.

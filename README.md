@@ -90,3 +90,8 @@ En esta entrega (2026-10-25), `cmake`, `g++`, `cargo`, `rustc` y `git` no están
 ## Uso seguro
 
 Enviar una petición puede modificar un servidor. Verifica destino, método y contenido, y usa solo APIs que tengas autorización para probar. Sin bóveda del sistema operativo disponible, la interfaz bloquea guardar/enviar peticiones con nombres de campos que parecen secretos; esto es un filtro conservador, no un gestor de credenciales ni una garantía de detección. No guardes tokens en texto libre. La aplicación es offline salvo las peticiones HTTP que el usuario envíe.
+
+
+## Sitio web
+
+El sitio estático vive en `website/` y se despliega a GitHub Pages con `.github/workflows/pages.yml` al cambiar esos archivos en `dev`. El repositorio debe tener GitHub Pages habilitado con **GitHub Actions** como origen de despliegue. La URL pública se obtiene del deployment; no se debe adivinar ni dar por activa hasta que el workflow termine correctamente. El sitio enlaza el código fuente y comunica que aún no existe binario Linux verificado.
