@@ -59,7 +59,7 @@ cmake --build build --parallel
 
 ### Compilación automática para Linux
 
-Cada push a `main` o `dev` activa GitHub Actions para compilar la aplicación y los tests Qt en Ubuntu 24.04 con CMake, Ninja y Qt 6, ejecutar CTest y, solo si todo pasa, adjuntar el ejecutable Linux como artefacto.
+Cada push a `main` o `dev` compila la aplicación y los tests Qt en Ubuntu 24.04, y ejecuta CTest. Los pushes exitosos a `main` publican una pre-release automatizada con identificador de commit; las etiquetas `v*` publican una release normal. Ambas adjuntan `reqflow-ai-linux.tar.gz`. El tarball contiene el ejecutable; Qt 6 y sus bibliotecas de runtime deben estar disponibles en el sistema. Las pre-releases CI no son versiones estables.
 
 Pruebas:
 
@@ -75,7 +75,7 @@ Datos locales en `~/.local/share/reqflow-ai/reqflow.sqlite3`.
 
 ## Verificación de esta entrega
 
-La disponibilidad de herramientas debe comprobarse en el entorno de cada build. En la última revisión del proyecto se intentó configurar con `cmake -S . -B build -DBUILD_TESTING=ON`; falló con `cmake: command not found` (exit code 127), así que no se compiló, no se ejecutó la GUI ni se probaron solicitudes de red. También pasó un escaneo estático con Python de rutas de fuentes/headers citadas por CMake y delimitadores C++; esto no sustituye al compilador. Los tests Qt Test escritos no se ejecutaron. Requiere toolchain C++20, CMake, Qt 6.4+, Qt Test y QSQLITE.
+La disponibilidad de herramientas debe comprobarse en el entorno de cada build. En la última revisión del proyecto se intentó configurar con `cmake -S . -B build -DBUILD_TESTING=ON`; falló con `cmake: command not found` (exit code 127), así que no se compiló, no se ejecutó la GUI ni se probaron solicitudes de red. También pasó un escaneo estático con Python de rutas de fuentes/headers citadas por CMake y delimitadores C++; esto no sustituye al compilador. Los tests Qt Test escritos no se ejecutaron en aquella revisión local. Más tarde, el workflow de GitHub Actions para `main` compiló la aplicación y los tests, ejecutó CTest y subió el artefacto correctamente en la ejecución [40235712301](https://github.com/CRISTOP-bot/ReqFlowAI/actions/runs/40235712301), commit `2e7c0ffdb9116cd4b3ebe51d03b4a75207402479`. Este resultado valida ese SHA concreto en Ubuntu 24.04, no una ejecución interactiva de la GUI ni otros sistemas. Requiere toolchain C++20, CMake, Qt 6.4+, Qt Test y QSQLITE.
 
 ## Uso seguro
 
@@ -85,3 +85,8 @@ Enviar una petición puede modificar un servidor. Verifica destino, método y co
 ## Seguridad y credenciales
 
 Consulta [docs/SECURITY.md](docs/SECURITY.md) para conocer el límite de protección local, el filtro heurístico de credenciales y la regresión de flujo HTTP. La base SQLite no está cifrada y el filtro no sustituye una bóveda segura.
+
+
+## Releases y artefactos Linux
+
+GitHub Actions compila la aplicación y ejecuta Qt Test/CTest antes de empaquetar. Si falla build o test, no se publica el artefacto ni la release. Un push exitoso a `main` publica una **pre-release CI** con tag `ci-<sha-corto>`; los pushes de tags `v*` publican releases de versión. En ambos casos se adjunta `reqflow-ai-linux.tar.gz`. El tarball es el ejecutable compilado y requiere que el runtime de Qt 6 y sus bibliotecas estén disponibles. La pre-release identificada por commit sirve para probar builds; no es una versión estable.
