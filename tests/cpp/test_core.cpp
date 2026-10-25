@@ -78,6 +78,20 @@ private slots:
         QCOMPARE(input, QStringLiteral("{{host}}/v{{version}}/{{host}}"));
         QVERIFY(!reqflow::data::expandTemplate(QStringLiteral("{{missing}}"), variables, &output, &error));
         QVERIFY(error.contains(QStringLiteral("missing")));
+        QCOMPARE(output, QStringLiteral("https://api.example.test/v2/https://api.example.test"));
+        QVERIFY(reqflow::data::expandTemplate(QStringLiteral("{literal} {{version}}"), variables, &output, &error));
+        QCOMPARE(output, QStringLiteral("{literal} 2"));
+        const QJsonObject typed{{QStringLiteral("nil"), QJsonValue(QJsonValue::Null)},
+                                {QStringLiteral("flag"), true},
+                                {QStringLiteral("number"), 2.5},
+                                {QStringLiteral("array"), QJsonArray{1, QStringLiteral("a")}}};
+        QVERIFY(reqflow::data::expandTemplate(QStringLiteral("{{nil}}|{{flag}}|{{number}}|{{array}}"), typed, &output, &error));
+        QCOMPARE(output, QStringLiteral("|true|2.5|[1,\"a\"]"));
+        QVERIFY(!reqflow::data::expandTemplate(QStringLiteral("{{version}}}}"), variables, &output, &error));
+        QCOMPARE(output, QStringLiteral("|true|2.5|[1,\"a\"]"));
+        QVERIFY(error.contains(QStringLiteral("mal formado")));
+        QVERIFY(reqflow::data::expandTemplate(QStringLiteral("{{missing}}"), variables, nullptr, &error) == false);
+        QVERIFY(error.contains(QStringLiteral("missing")));
     }
 
     void responseAssertionsEvaluateTypedChecks() {

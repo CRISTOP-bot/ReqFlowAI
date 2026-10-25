@@ -3,10 +3,18 @@
 ## Requisitos
 
 - C++20.
-- CMake 3.21+.
-- Qt 6.4+ con Core, Widgets, Network y Sql.
-- Driver `QSQLITE` disponible.
-- Qt Test para el target de pruebas (componente opcional que CMake busca cuando `BUILD_TESTING` está activo).
+- Rust estable y Cargo (requeridos para construir `backend/` como biblioteca estática integrada en `reqflow-ai`).
+- CMake 3.21 o posterior.
+- Qt 6.4 o posterior con Core, Widgets, Network y Sql; controlador QSQLITE habilitado.
+- Qt Test para compilar y ejecutar el target de pruebas C++.
+- Dependencia Cargo `serde_json`; Cargo obtiene las dependencias desde crates.io durante el primer build.
+
+## Integración Rust parcial
+
+Solo la expansión estricta de plantillas `{{identificador}}` se ejecuta en Rust; la aplicación, persistencia SQLite, HTTP, motor de flujos y UI siguen en C++/Qt. La FFI usa punteros y longitudes UTF-8 explícitas para entrada/salida/error, incluidos bytes NUL. Los buffers propiedad de Rust se liberan llamando `reqflow_string_free(buffer, length)`. La función de expansión no devuelve una salida parcial cuando falla.
+
+La rama aún no contiene `backend/Cargo.lock`: no se pudo generar sin Cargo en el entorno disponible, por lo que no se ha inventado. Cuando haya Cargo, genera el lockfile real y activa `--locked` en el build/CI.
+
 
 ## Compilación
 
@@ -17,10 +25,6 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ./build/reqflow-ai
 ```
-
-## Compilación automática para Linux
-
-El workflow `.github/workflows/linux-build.yml` se activa en cada `push` a `main` o `dev`. En Ubuntu 24.04 instala CMake, Ninja, el compilador C++ y Qt 6, configura el proyecto en modo Release con las pruebas desactivadas y compila el target `reqflow-ai`. El paso final publica el ejecutable `build/reqflow-ai` como artefacto del run; si falta el binario, el workflow falla. Esto comprueba la compilación, no el arranque visual ni el comportamiento de la aplicación.
 
 ## Pruebas
 

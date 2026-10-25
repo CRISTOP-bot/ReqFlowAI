@@ -32,6 +32,13 @@ Consulta el [índice de documentación](docs/INDEX.md), la [arquitectura](docs/A
 
 ### Implementado en C++/Qt
 
+- **Backend Rust parcial (integración inicial, pendiente de build verificado)**: la expansión estricta de variables `{{identificador}}` ya delega en una crate Rust (`backend/`) enlazada como biblioteca estática a través de FFI C; la interfaz Qt existente se conserva. La validación JSON y la conversión de valores viven en Rust, con pruebas unitarias Cargo. Persistencia SQLite, red HTTP, flujos y el resto de servicios siguen en C++/Qt; esto no es una migración completa del backend. Cargo/Rust estable es requisito adicional para compilar esta rama; `Cargo.lock` aún no se pudo generar en el entorno disponible.
+
+#### Construir la parte Rust
+
+Instala Rust estable con Cargo y ejecuta `cargo test --manifest-path backend/Cargo.toml`; CMake construye automáticamente la biblioteca estática durante la compilación de la aplicación.
+
+La frontera FFI pasa buffers UTF-8 con longitudes explícitas, por lo que maneja valores que contengan NUL; ambos buffers se liberan mediante `reqflow_string_free` usando la longitud correspondiente.
 - **Login local de aplicación (implementación añadida; beta sin compilar en este entorno)**: en el primer inicio se solicita crear usuario y contraseña; cada apertura posterior valida ambos antes de mostrar la ventana principal. La contraseña se almacena como verificador PBKDF2-HMAC-SHA-256 (Qt 6 `QPasswordDigestor`), sal aleatoria individual de 16 bytes, 600 000 iteraciones y comparación en tiempo constante. Usuario normalizado NFKC/casefold, contraseña de 12–1024 caracteres, confirmación en el alta; cancelar cierra la aplicación sin dejar la ventana principal visible. Es una puerta local de interfaz, no una cuenta web, SSO ni autenticación remota. La compilación y la prueba interactiva quedan pendientes de un entorno C++20/CMake/Qt.
 - **Importante sobre seguridad/recuperación**: la cuenta no cifra la base SQLite ni protege ante quien copie/edite el archivo o tenga acceso al sistema operativo mientras la sesión está abierta. No hay recuperación remota ni alta secundaria ni restablecimiento que borre datos; si olvidas la contraseña, los datos existentes no se recuperan mediante ReqFlow AI. Conserva tu contraseña en un gestor seguro y haz copias de seguridad protegidas.
 - Ventana Qt Widgets con editor de peticiones, proyectos y respuesta.
@@ -56,7 +63,9 @@ Quedan fuera: nodos de espera/reintento/loop, exportación/versionado formal de 
 
 - C++20.
 - CMake 3.21 o posterior.
-- Qt 6.4 o posterior: Core, Widgets, Network, Sql; Qt Test opcional para pruebas.
+- Rust estable y Cargo (obligatorios para compilar el backend integrado en esta rama).
+- Qt 6.4 o posterior: Core, Widgets, Network, Sql; Qt Test para las pruebas C++.
+- Conexión a crates.io durante el primer build Cargo, para resolver `serde_json` (todavía no se ha generado `Cargo.lock`).
 - Driver QSQLITE habilitado en el paquete de Qt.
 
 ## Compilar y ejecutar
@@ -66,10 +75,6 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ./build/reqflow-ai
 ```
-
-### Compilación automática para Linux
-
-Cada push a `main` o `dev` activa GitHub Actions para compilar `reqflow-ai` en Ubuntu 24.04 con CMake, Ninja y Qt 6. Si el build termina correctamente, el ejecutable queda adjunto como artefacto descargable en esa ejecución del workflow.
 
 Pruebas:
 

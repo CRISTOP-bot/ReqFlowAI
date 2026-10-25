@@ -9,12 +9,28 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 6.4 REQUIRED COMPONENTS Core Widgets Network Sql)
+find_program(CARGO_EXECUTABLE cargo REQUIRED)
+
+set(RUST_BACKEND_DIR "${CMAKE_CURRENT_SOURCE_DIR}/backend")
+set(RUST_BACKEND_TARGET_DIR "${CMAKE_CURRENT_BINARY_DIR}/rust-target")
+set(RUST_BACKEND_LIBRARY "${RUST_BACKEND_TARGET_DIR}/release/${CMAKE_STATIC_LIBRARY_PREFIX}reqflow_backend${CMAKE_STATIC_LIBRARY_SUFFIX}")
+file(GLOB_RECURSE RUST_BACKEND_SOURCES CONFIGURE_DEPENDS "${RUST_BACKEND_DIR}/src/*.rs")
+add_custom_command(
+    OUTPUT "${RUST_BACKEND_LIBRARY}"
+    COMMAND "${CARGO_EXECUTABLE}" build --manifest-path "${RUST_BACKEND_DIR}/Cargo.toml" --release --target-dir "${RUST_BACKEND_TARGET_DIR}"
+    DEPENDS "${RUST_BACKEND_DIR}/Cargo.toml" ${RUST_BACKEND_SOURCES}
+    WORKING_DIRECTORY "${RUST_BACKEND_DIR}"
+    COMMENT "Building ReqFlow AI Rust backend"
+    VERBATIM
+)
+add_custom_target(reqflow-rust-backend DEPENDS "${RUST_BACKEND_LIBRARY}")
 
 add_executable(reqflow-ai
     src/main.cpp
     src/network/httpclient.cpp
     src/data/projectstore.cpp
     src/data/environment.cpp
+    src/data/rustbackend.cpp
     src/flow/flowengine.cpp
     src/flow/floweditor.cpp
     src/openapi/openapiimporter.cpp
@@ -25,6 +41,7 @@ add_executable(reqflow-ai
     include/reqflow/network/httpclient.h
     include/reqflow/data/projectstore.h
     include/reqflow/data/environment.h
+    include/reqflow/data/rustbackend.h
     include/reqflow/flow/flowengine.h
     include/reqflow/flow/floweditor.h
     include/reqflow/flow/flowgraphics.h
@@ -35,7 +52,11 @@ add_executable(reqflow-ai
     include/reqflow/ui/authdialog.h
 )
 target_include_directories(reqflow-ai PRIVATE include)
-target_link_libraries(reqflow-ai PRIVATE Qt6::Core Qt6::Widgets Qt6::Network Qt6::Sql)
+add_dependencies(reqflow-ai reqflow-rust-backend)
+target_link_libraries(reqflow-ai PRIVATE Qt6::Core Qt6::Widgets Qt6::Network Qt6::Sql "${RUST_BACKEND_LIBRARY}")
+if(UNIX AND NOT APPLE)
+    target_link_libraries(reqflow-ai PRIVATE dl pthread m)
+endif()
 
 include(CTest)
 if(BUILD_TESTING)
@@ -46,6 +67,7 @@ if(BUILD_TESTING)
             src/network/httpclient.cpp
             src/data/projectstore.cpp
             src/data/environment.cpp
+            src/data/rustbackend.cpp
             src/flow/flowengine.cpp
             src/openapi/openapiimporter.cpp
             src/testing/assertions.cpp
@@ -59,7 +81,11 @@ if(BUILD_TESTING)
             include/reqflow/data/environment.h
         )
         target_include_directories(reqflow-core-tests PRIVATE include)
-        target_link_libraries(reqflow-core-tests PRIVATE Qt6::Core Qt6::Network Qt6::Sql Qt6::Test)
+        add_dependencies(reqflow-core-tests reqflow-rust-backend)
+        target_link_libraries(reqflow-core-tests PRIVATE Qt6::Core Qt6::Network Qt6::Sql Qt6::Test "${RUST_BACKEND_LIBRARY}")
+        if(UNIX AND NOT APPLE)
+            target_link_libraries(reqflow-core-tests PRIVATE dl pthread m)
+        endif()
         add_test(NAME reqflow-core-tests COMMAND reqflow-core-tests)
     endif()
 endif()
