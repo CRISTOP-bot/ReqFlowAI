@@ -4,19 +4,19 @@ Aplicación nativa de escritorio **C++20 + Qt 6**, local-first, para crear y env
 
 ## Motion graphics
 
-### Parte 2 — De una instrucción a un flujo API
+### Parte 1 — Presentación de ReqFlow AI
 
-Vista previa animada:
+![ReqFlow AI — Motion Graphic, Parte 1](videos/reqflow-ai-motion-part-1-preview.gif)
+
+[Ver o descargar MP4 — Parte 1](https://github.com/CRISTOP-bot/ReqFlowAI/blob/main/videos/reqflow-ai-motion-part-1.mp4) · 12 s · 1280 × 720 · H.264 · 24 FPS.
+
+### Parte 2 — De una instrucción a un flujo API
 
 ![ReqFlow AI — Motion Graphic, Parte 2](videos/reqflow-ai-motion-part-2-preview.gif)
 
-Vídeo completo: [ver o descargar MP4 — Parte 2](https://github.com/CRISTOP-bot/ReqFlowAI/blob/main/videos/reqflow-ai-motion-part-2.mp4) · 10 s · 1280 × 720 · H.264 · 24 FPS · sin audio.
+[Ver o descargar MP4 — Parte 2](https://github.com/CRISTOP-bot/ReqFlowAI/blob/main/videos/reqflow-ai-motion-part-2.mp4) · 10 s · 1280 × 720 · H.264 · 24 FPS · sin audio.
 
-Archivo MP4: [`videos/reqflow-ai-motion-part-2.mp4`](videos/reqflow-ai-motion-part-2.mp4).
-
-### Parte 1
-
-_Pendiente: Cristopher agregará aquí el vídeo de la parte 1._
+Los GIF son vistas previas animadas para que se reproduzcan directamente en GitHub; los MP4 enlazados son las versiones completas.
 
 ---
 
