@@ -71,7 +71,16 @@
     .stat strong { font-weight: 700; }
     .stat span { color: var(--body); text-align: right; }
     .status-unavailable { color: #703b2c !important; font-weight: 700; }
-    .section { padding-block: clamp(46px, 7vw, 72px); border-top: 1px solid var(--line); }
+    .section { padding-block: clamp(46px, 7vw, 72px); border-top: 1px solid var(--line); scroll-margin-top: 18px; }
+    html.js .reveal { opacity: 0; transform: translateY(24px); transition: opacity .65s ease, transform .65s cubic-bezier(.2,.65,.25,1); }
+    html.js .reveal.is-visible { opacity: 1; transform: translateY(0); }
+    html.js .reveal-child { opacity: 0; transform: translateY(16px); transition: opacity .5s ease, transform .5s ease; }
+    html.js .reveal.is-visible .reveal-child { opacity: 1; transform: translateY(0); }
+    html.js .reveal.is-visible .reveal-child:nth-child(2) { transition-delay: .08s; }
+    html.js .reveal.is-visible .reveal-child:nth-child(3) { transition-delay: .16s; }
+    html.js .reveal.is-visible .reveal-child:nth-child(4) { transition-delay: .24s; }
+    html.js .reveal.is-visible .reveal-child:nth-child(5) { transition-delay: .32s; }
+    html.js .reveal.is-visible .reveal-child:nth-child(6) { transition-delay: .4s; }
     h2 { margin: 0 0 14px; font-size: clamp(1.8rem, 3.4vw, 2.55rem); line-height: 1.15; letter-spacing: -.045em; text-wrap: balance; }
     .section-intro { max-width: 740px; margin: 0 0 30px; color: var(--body); }
     .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
@@ -115,6 +124,7 @@
     }
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
+      html.js .reveal, html.js .reveal-child { opacity: 1; transform: none; transition: none; }
       *, *::before, *::after { transition-duration: .01ms !important; }
     }
   </style>
@@ -129,7 +139,7 @@
     </div>
   </header>
   <main id="contenido">
-    <section class="wrap hero" id="inicio" aria-labelledby="titulo">
+    <section class="wrap hero reveal" id="inicio" aria-labelledby="titulo">
       <div class="hero-copy">
         <p class="eyebrow">Un espacio de trabajo para APIs</p>
         <h1 id="titulo">Prueba y organiza tus flujos API con claridad.</h1>
@@ -147,34 +157,34 @@
         <div class="stat"><strong>Binario Linux</strong><span class="status-unavailable">No disponible</span></div>
       </aside>
     </section>
-    <section class="section" aria-labelledby="funciones">
+    <section class="section reveal" id="capacidades" aria-labelledby="funciones">
       <div class="wrap">
         <h2 id="funciones">Hecho para el trabajo cotidiano con APIs</h2>
         <p class="section-intro">Un escritorio local-first que reúne herramientas prácticas para preparar solicitudes, conservar el contexto del proyecto y recorrer automatizaciones sin perder de vista el estado real de cada función.</p>
         <div class="grid">
-          <article class="feature"><h3>Cliente HTTP</h3><p>Configura métodos, URL, parámetros, cabeceras y cuerpo para tus solicitudes.</p><span class="feature-tag">Interfaz de escritorio</span></article>
-          <article class="feature"><h3>Proyectos e historial</h3><p>Guarda localmente peticiones, entornos, historial y suites con SQLite.</p><span class="feature-tag">Almacenamiento local</span></article>
-          <article class="feature"><h3>Flujos de API</h3><p>El proyecto incluye un editor visual y un motor de flujos; sus límites siguen en desarrollo.</p><span class="feature-tag">En desarrollo</span></article>
-          <article class="feature"><h3>Importación OpenAPI</h3><p>Importa un subconjunto de OpenAPI 3.x en JSON o YAML; las referencias admitidas son limitadas.</p><span class="feature-tag">Soporte parcial</span></article>
-          <article class="feature"><h3>Suites y respuestas</h3><p>Incluye aserciones y herramientas para inspeccionar respuestas HTTP y JSON.</p><span class="feature-tag">Revisar estado en docs</span></article>
-          <article class="feature"><h3>Comparación JSON</h3><p>Compara dos respuestas del historial por rutas JSON. No compara texto, XML ni esquemas OpenAPI.</p><span class="feature-tag">Beta experimental</span></article>
+          <article class="feature reveal-child"><h3>Cliente HTTP</h3><p>Configura métodos, URL, parámetros, cabeceras y cuerpo para tus solicitudes.</p><span class="feature-tag">Interfaz de escritorio</span></article>
+          <article class="feature reveal-child"><h3>Proyectos e historial</h3><p>Guarda localmente peticiones, entornos, historial y suites con SQLite.</p><span class="feature-tag">Almacenamiento local</span></article>
+          <article class="feature reveal-child"><h3>Flujos de API</h3><p>El proyecto incluye un editor visual y un motor de flujos; sus límites siguen en desarrollo.</p><span class="feature-tag">En desarrollo</span></article>
+          <article class="feature reveal-child"><h3>Importación OpenAPI</h3><p>Importa un subconjunto de OpenAPI 3.x en JSON o YAML; las referencias admitidas son limitadas.</p><span class="feature-tag">Soporte parcial</span></article>
+          <article class="feature reveal-child"><h3>Suites y respuestas</h3><p>Incluye aserciones y herramientas para inspeccionar respuestas HTTP y JSON.</p><span class="feature-tag">Revisar estado en docs</span></article>
+          <article class="feature reveal-child"><h3>Comparación JSON</h3><p>Compara dos respuestas del historial por rutas JSON. No compara texto, XML ni esquemas OpenAPI.</p><span class="feature-tag">Beta experimental</span></article>
         </div>
         <p class="status-note"><strong>Transparencia:</strong> estas capacidades se describen en el código y la documentación de la rama <strong>dev</strong>. El último build de Linux falló, así que no se deben tomar como una versión ejecutable ya verificada. Consulta el inventario y el estado de CI antes de usarla.</p>
       </div>
     </section>
-    <section class="section" id="primeros-pasos" aria-labelledby="pasos-titulo">
+    <section class="section reveal" id="primeros-pasos" aria-labelledby="pasos-titulo">
       <div class="wrap">
         <p class="section-kicker">Empieza aquí</p>
         <h2 id="pasos-titulo">Explora el proyecto en tres pasos</h2>
         <p class="section-intro">El repositorio es la fuente para revisar el código, las instrucciones de desarrollo y qué funciones ya están listas.</p>
         <div class="steps">
-          <article class="step"><h3>Obtén las fuentes</h3><p>Descarga el ZIP de la rama dev. Es código fuente, no un programa instalable.</p></article>
-          <article class="step"><h3>Revisa el estado</h3><p>Consulta las funciones documentadas, las limitaciones y las pruebas realmente ejecutadas.</p></article>
-          <article class="step"><h3>Sigue el desarrollo</h3><p>Revisa los cambios y ejecuciones de compilación en GitHub antes de probar una build.</p></article>
+          <article class="step reveal-child"><h3>Obtén las fuentes</h3><p>Descarga el ZIP de la rama dev. Es código fuente, no un programa instalable.</p></article>
+          <article class="step reveal-child"><h3>Revisa el estado</h3><p>Consulta las funciones documentadas, las limitaciones y las pruebas realmente ejecutadas.</p></article>
+          <article class="step reveal-child"><h3>Sigue el desarrollo</h3><p>Revisa los cambios y ejecuciones de compilación en GitHub antes de probar una build.</p></article>
         </div>
       </div>
     </section>
-    <section class="section" id="descargas" aria-labelledby="descargas-titulo">
+    <section class="section reveal" id="descargas" aria-labelledby="descargas-titulo">
       <div class="wrap">
         <h2 id="descargas-titulo">Descargas</h2>
         <p class="section-intro">La descarga disponible aquí es el código fuente. No hay un ejecutable ni instalador de Linux publicado y verificado.</p>
@@ -192,7 +202,7 @@
         </nav>
       </div>
     </section>
-    <section class="section" aria-labelledby="abierto">
+    <section class="section reveal" aria-labelledby="abierto">
       <div class="wrap">
         <h2 id="abierto">Un proyecto abierto y en desarrollo</h2>
         <p class="section-intro">La interfaz y sus componentes siguen evolucionando. La detección de secretos usa filtros heurísticos; el login local no cifra la base SQLite. Consulta el repositorio para revisar limitaciones, documentación y cambios recientes.</p>
@@ -206,5 +216,22 @@
   <footer class="footer">
     <div class="wrap foot"><span>ReqFlow AI · Aplicación de escritorio en desarrollo</span><a href="https://github.com/CRISTOP-bot/ReqFlowAI">Código y documentación en GitHub</a></div>
   </footer>
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduced || !('IntersectionObserver' in window)) return;
+      root.classList.add('js');
+      var items = document.querySelectorAll('.reveal');
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add('is-visible');
+          observer.unobserve(entry.target);
+        });
+      }, { threshold: 0.12, rootMargin: '0px 0px -36px 0px' });
+      items.forEach(function (item) { observer.observe(item); });
+    }());
+  </script>
 </body>
 </html>
