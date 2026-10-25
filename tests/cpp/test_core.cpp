@@ -19,7 +19,7 @@ private slots:
         reqflow::network::HttpResponse response;
         response.headers.append(qMakePair(QByteArray("Content-Type"), QByteArray("application/json")));
         QCOMPARE(response.header("content-type"), QByteArray("application/json"));
-        QCOMPARE(response.header("missing"), QByteArray{});
+        QCOMPARE(response.header("missing"), QByteArray());
     }
 
     void flowValidationRejectsCyclesAndAcceptsLinearGraph() {
