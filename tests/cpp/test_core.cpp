@@ -60,7 +60,7 @@ private slots:
     }
 
     void flowRequestValidationErrorsNeverSendHttp() {
-        auto runInvalidRequest = [](QJsonObject config, const QVariantMap &inputs = {}) {
+        auto runInvalidRequest = [](QJsonObject config, const QVariantMap &inputs) {
             reqflow::flow::FlowDefinition flow;
             flow.name = QStringLiteral("Must not send");
             flow.nodes = {{QStringLiteral("start"), QStringLiteral("start"), {}},
@@ -72,33 +72,33 @@ private slots:
             return engine.run(flow, inputs);
         };
         const auto secret = runInvalidRequest({{QStringLiteral("url"), QStringLiteral("http://127.0.0.1:1/should-not-connect")},
-                                               {QStringLiteral("headers"), QStringLiteral("X-Api-Token: hidden")}});
+                                               {QStringLiteral("headers"), QStringLiteral("X-Api-Token: hidden")}}, {});
         QCOMPARE(secret.status, QStringLiteral("failed"));
         QVERIFY(secret.error.contains(QStringLiteral("credenciales")));
         QCOMPARE(secret.logs.size(), 2);
         QCOMPARE(secret.logs.last().status, QStringLiteral("failed"));
 
-        const auto missingVariable = runInvalidRequest({{QStringLiteral("url"), QStringLiteral("http://127.0.0.1:1/{{missing}}")}});
+        const auto missingVariable = runInvalidRequest({{QStringLiteral("url"), QStringLiteral("http://127.0.0.1:1/{{missing}}")}}, {});
         QCOMPARE(missingVariable.status, QStringLiteral("failed"));
         QVERIFY(missingVariable.error.contains(QStringLiteral("no definida")));
         QCOMPARE(missingVariable.logs.size(), 2);
 
-        const auto malformedUrl = runInvalidRequest({{QStringLiteral("url"), QStringLiteral("file:///etc/passwd")}});
+        const auto malformedUrl = runInvalidRequest({{QStringLiteral("url"), QStringLiteral("file:///etc/passwd")}}, {});
         QCOMPARE(malformedUrl.status, QStringLiteral("failed"));
         QVERIFY(malformedUrl.error.contains(QStringLiteral("URL HTTP/HTTPS")));
 
         const auto invalidMethod = runInvalidRequest({{QStringLiteral("url"), QStringLiteral("http://127.0.0.1:1/")},
-                                                      {QStringLiteral("method"), QStringLiteral("TRACE")}});
+                                                      {QStringLiteral("method"), QStringLiteral("TRACE")}}, {});
         QCOMPARE(invalidMethod.status, QStringLiteral("failed"));
         QVERIFY(invalidMethod.error.contains(QStringLiteral("Método HTTP")));
 
         const auto malformedHeaders = runInvalidRequest({{QStringLiteral("url"), QStringLiteral("http://127.0.0.1:1/")},
-                                                         {QStringLiteral("headers"), QStringLiteral("MissingColon")}});
+                                                         {QStringLiteral("headers"), QStringLiteral("MissingColon")}}, {});
         QCOMPARE(malformedHeaders.status, QStringLiteral("failed"));
         QVERIFY(malformedHeaders.error.contains(QStringLiteral("Cabecera HTTP")));
 
         const auto missingBodyVariable = runInvalidRequest({{QStringLiteral("url"), QStringLiteral("http://127.0.0.1:1/")},
-                                                            {QStringLiteral("body"), QStringLiteral("{{not_defined}}")}});
+                                                            {QStringLiteral("body"), QStringLiteral("{{not_defined}}")}}, {});
         QCOMPARE(missingBodyVariable.status, QStringLiteral("failed"));
         QVERIFY(missingBodyVariable.error.contains(QStringLiteral("no definida")));
     }
