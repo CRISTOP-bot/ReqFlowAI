@@ -6,9 +6,13 @@ Aplicación nativa de escritorio **C++20 + Qt 6**, local-first, para crear y env
 
 ### Parte 2 — De una instrucción a un flujo API
 
-[▶ Ver o descargar el vídeo MP4 — Parte 2](https://github.com/CRISTOP-bot/ReqFlowAI/blob/main/videos/reqflow-ai-motion-part-2.mp4) · 10 s · 1280 × 720 · H.264 · 24 FPS · sin audio.
+Vista previa animada:
 
-Archivo del vídeo: [`videos/reqflow-ai-motion-part-2.mp4`](videos/reqflow-ai-motion-part-2.mp4).
+![ReqFlow AI — Motion Graphic, Parte 2](videos/reqflow-ai-motion-part-2-preview.gif)
+
+Vídeo completo: [ver o descargar MP4 — Parte 2](https://github.com/CRISTOP-bot/ReqFlowAI/blob/main/videos/reqflow-ai-motion-part-2.mp4) · 10 s · 1280 × 720 · H.264 · 24 FPS · sin audio.
+
+Archivo MP4: [`videos/reqflow-ai-motion-part-2.mp4`](videos/reqflow-ai-motion-part-2.mp4).
 
 ### Parte 1
 
