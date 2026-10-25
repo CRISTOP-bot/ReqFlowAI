@@ -38,7 +38,9 @@ El target `reqflow-core-tests` cubre contratos seleccionados del cliente HTTP, p
 
 ## Evidencia y reportes
 
-En esta tarea de login local (2026-10-25) se comprobó la disponibilidad real de herramientas: `git`, `cmake`, `g++`, `qmake6` y `pkg-config` no se encontraron en PATH. Por tanto, configuración, build y tests Qt Test no se ejecutaron. La firma y el prototipo `QPasswordDigestor::deriveKeyPbkdf2(QCryptographicHash::Sha256, data, salt, iterations, dkLen)` se revisaron en la documentación oficial de Qt (Qt Network), pero esto no demuestra que una instalación local Qt 6.4 compile el código ni su comportamiento runtime. Las pruebas se escribieron, pero no están ejecutadas. Comandos de build/test no ejecutados porque falta CMake y la toolchain Qt/C++ no está disponible; no declarar build aprobado. Actualiza esta evidencia si se dispone de entorno nuevo.
+El primer run de CI con la integración Rust (`c49e514`, run 40222792370) instaló y configuró correctamente Ubuntu 24.04/Qt, y las seis pruebas Cargo pasaron. La compilación del target de pruebas C++ falló en Qt MOC con `missing ')' in macro usage` en `tests/cpp/test_core.cpp`; se ha aislado una edición correctiva para el re-run. Por tanto, ese run no valida el build completo y no se afirma que Qt Test pase. El resultado del run posterior se añadirá una vez termine.
+
+La evidencia previa de autenticación/login corresponde a otra edición: `git`, `cmake`, `g++`, `qmake6` y `pkg-config` no estaban disponibles entonces; no debe confundirse con el nuevo run de GitHub Actions.
 
 La revisión previa registró `cmake -S . -B build -DBUILD_TESTING=ON` con `cmake: command not found` (exit code 127). No se configuró ni compiló el proyecto en ese entorno.
 

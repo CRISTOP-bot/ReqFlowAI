@@ -50,7 +50,7 @@ private slots:
     }
 
     void openApiImporterBuildsRequestsWithoutExecutingThem() {
-        const QByteArray spec = R"({"openapi":"3.0.0","servers":[{"url":"https://api.example.test"}],"paths":{"/health":{"get":{"summary":"Health","parameters":[{"name":"verbose","in":"query"}]}}}})";
+        const QByteArray spec = "{\"openapi\":\"3.0.0\",\"servers\":[{\"url\":\"https://api.example.test\"}],\"paths\":{\"/health\":{\"get\":{\"summary\":\"Health\",\"parameters\":[{\"name\":\"verbose\",\"in\":\"query\"}]}}}}";
         const auto result = reqflow::openapi::parseOpenApiJson(spec);
         QVERIFY2(result.error.isEmpty(), qPrintable(result.error));
         QCOMPARE(result.requests.size(), 1);
@@ -195,21 +195,24 @@ private slots:
         QCOMPARE(store.saveRequest(project, requestId, request), requestId);
         QVERIFY(store.deleteRequest(project, requestId));
         QVERIFY(store.requests(project).isEmpty());
-        const qint64 env = store.saveEnvironment(project, -1, QStringLiteral("Local"), QStringLiteral(R"({"base_url":"http://localhost"})"));
+        const QByteArray localEnvironmentJson = R"({"base_url":"http://localhost"})";
+        const qint64 env = store.saveEnvironment(project, -1, QStringLiteral("Local"), QString::fromUtf8(localEnvironmentJson));
         QVERIFY(env > 0);
         QCOMPARE(store.environments(project).size(), 1);
-        QVERIFY(store.saveEnvironment(project, -1, QStringLiteral("Secrets"), QStringLiteral(R"({"api_token":"no"})")) < 0);
+        const QString secretsEnvironmentJson = QStringLiteral("{\"api_token\":\"no\"}");
+        const qint64 secretsEnvironment = store.saveEnvironment(project, -1, QStringLiteral("Secrets"), secretsEnvironmentJson);
+        QVERIFY(secretsEnvironment < 0);
         const qint64 suiteId = store.saveAssertionSuite(project, -1, QStringLiteral("Basic"), -1,
-            QStringLiteral(R"([{"type":"status","expected":"200"}])"));
+            QString::fromUtf8(R"([{"type":"status","expected":"200"}])"));
         QVERIFY(suiteId > 0);
         QCOMPARE(store.assertionSuites(project).size(), 1);
         QVERIFY(store.addAssertionRun(suiteId, QStringLiteral("passed"), QStringLiteral("[]")) > 0);
-        QVERIFY(store.saveAssertionSuite(project, -1, QStringLiteral("Bad"), -1, QStringLiteral(R"([{"type":"unknown"}])")) < 0);
+        QVERIFY(store.saveAssertionSuite(project, -1, QStringLiteral("Bad"), -1, QString::fromUtf8(R"([{"type":"unknown"}])")) < 0);
         request.insert(QStringLiteral("headers"), QStringLiteral("Authorization: Bearer secret-value"));
         QVERIFY(store.saveRequest(project, -1, request) < 0);
         const qint64 flowId = store.saveFlow(project, -1, QStringLiteral("Smoke"), QStringLiteral("{}"));
         QVERIFY(flowId > 0);
-        QVERIFY(store.addFlowRun(flowId, QStringLiteral("success"), QStringLiteral(R"({"steps":2})")) > 0);
+        QVERIFY(store.addFlowRun(flowId, QStringLiteral("success"), QString::fromUtf8(R"({"steps":2})")) > 0);
         QVariantMap history;
         history.insert(QStringLiteral("request_name"), QStringLiteral("Health")); history.insert(QStringLiteral("method"), QStringLiteral("GET"));
         history.insert(QStringLiteral("url"), QStringLiteral("https://example.test/path?access_token=secret-value"));
