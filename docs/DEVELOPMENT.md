@@ -18,6 +18,10 @@ cmake --build build --parallel
 ./build/reqflow-ai
 ```
 
+## Compilación automática para Linux
+
+El workflow `.github/workflows/linux-build.yml` se activa en cada `push` a `main` o `dev`. En Ubuntu 24.04 instala CMake, Ninja, el compilador C++ y Qt 6, configura el proyecto en modo Release con las pruebas desactivadas y compila el target `reqflow-ai`. El paso final publica el ejecutable `build/reqflow-ai` como artefacto del run; si falta el binario, el workflow falla. Esto comprueba la compilación, no el arranque visual ni el comportamiento de la aplicación.
+
 ## Pruebas
 
 ```sh
