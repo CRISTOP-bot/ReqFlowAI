@@ -39,6 +39,7 @@ if(BUILD_TESTING)
     if(TARGET Qt6::Test)
         add_executable(reqflow-core-tests
             tests/cpp/test_core.cpp
+            tests/cpp/test_core.h
             src/network/httpclient.cpp
             src/data/projectstore.cpp
             src/data/environment.cpp
