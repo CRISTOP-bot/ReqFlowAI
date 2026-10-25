@@ -4,17 +4,31 @@
 
 - C++20.
 - Rust estable y Cargo (requeridos para construir `backend/` como biblioteca estática integrada en `reqflow-ai`).
-- CMake 3.21 o posterior.
-- Qt 6.4 o posterior con Core, Widgets, Network y Sql; controlador QSQLITE habilitado.
-- Qt Test para compilar y ejecutar el target de pruebas C++.
 - Dependencia Cargo `serde_json`; Cargo obtiene las dependencias desde crates.io durante el primer build.
+- yaml-cpp (requerida para importar especificaciones OpenAPI YAML).
+- CMake 3.21+.
+- Qt 6.4+ con Core, Widgets, Network y Sql.
+- Driver `QSQLITE` disponible.
+- Qt Test para el target de pruebas.
 
-## Integración Rust parcial
+## Backend Rust parcial
 
-Solo la expansión estricta de plantillas `{{identificador}}` se ejecuta en Rust; la aplicación, persistencia SQLite, HTTP, motor de flujos y UI siguen en C++/Qt. La FFI usa punteros y longitudes UTF-8 explícitas para entrada/salida/error, incluidos bytes NUL. Los buffers propiedad de Rust se liberan llamando `reqflow_string_free(buffer, length)`. La función de expansión no devuelve una salida parcial cuando falla.
+`backend/Cargo.toml` define la biblioteca Rust. CMake invoca `cargo build --release` y enlaza la biblioteca con el ejecutable y los tests. La función delegada es la expansión estricta de plantillas `{{identificador}}`; Qt conserva su API mediante `src/data/rustbackend.cpp`. Para probar el crate por separado:
 
-La rama aún no contiene `backend/Cargo.lock`: no se pudo generar sin Cargo en el entorno disponible, por lo que no se ha inventado. Cuando haya Cargo, genera el lockfile real y activa `--locked` en el build/CI.
+```sh
+cargo test --manifest-path backend/Cargo.toml
+```
 
+La FFI usa punteros y longitudes UTF-8 explícitas; los resultados se liberan con `reqflow_string_free`. Esta primera migración no mueve a Rust red HTTP, persistencia, motor de flujos ni la interfaz.
+
+
+## Validación del motor de flujos
+
+`flowRequestValidationErrorsNeverSendHttp` cubre cabeceras sospechosas/mal formadas, variables faltantes en URL/cuerpo, esquemas no HTTP y métodos fuera de lista. Usa direcciones loopback y exige error del nodo de petición para verificar el retorno previo a `HttpClient::send`; las pruebas están escritas pero todavía deben ejecutarse en CI. El detector es una heurística ampliada (nombres de campos sensibles y algunos patrones comunes de tokens); tiene falsos positivos/negativos posibles y no cifra SQLite. La regresión usa endpoints loopback no disponibles para confirmar que las fallas de validación no llegan a intentar conectar.
+
+## Importador OpenAPI
+
+El importador admite JSON y YAML, y resuelve referencias locales bajo `#/components/...` únicamente cuando el objeto Path Item o la operación contiene directamente `$ref`. La referencia se expande en una sola pasada: referencias externas o transitivas/anidadas no se resuelven y se omiten con advertencia. El alcance no equivale a soporte OpenAPI general de `$ref`. Los tests cubren YAML válido/inválido, referencias locales directas y aviso de referencia externa. `yaml-cpp` es dependencia de compilación y debe estar instalada.
 
 ## Compilación
 
@@ -38,9 +52,7 @@ El target `reqflow-core-tests` cubre contratos seleccionados del cliente HTTP, p
 
 ## Evidencia y reportes
 
-El primer run de CI con la integración Rust (`c49e514`, run 40222792370) instaló/configuró Ubuntu 24.04/Qt y las seis pruebas Cargo pasaron, pero se detuvo en Qt MOC. En el run siguiente (`bd8992f`, 40223089061) MOC se superó y la compilación encontró un error preexistente en `src/network/httpclient.cpp`: se llamaba `deleteLater()` sobre `QElapsedTimer`, que no es un QObject. Se corrigió esa llamada a `delete`, que también hace explícita la liberación del timer y resuelve un bloqueo para compilar el target C++; el CI posterior de ese cambio sigue pendiente. No declarar el build global ni Qt Test aprobados hasta que ese run finalice correctamente.
-
-La evidencia previa de autenticación/login corresponde a otra edición: `git`, `cmake`, `g++`, `qmake6` y `pkg-config` no estaban disponibles entonces; no debe confundirse con el nuevo run de GitHub Actions.
+En esta entrega (2026-10-25) se comprobó la disponibilidad real de herramientas: `git`, `cmake`, `g++`, `cargo`, `rustc`, `qmake6` y `pkg-config` no se encontraron en PATH. Se actualizó el workflow Linux para instalar Rust/yaml-cpp, configurar `BUILD_TESTING=ON`, compilar aplicación/tests y ejecutar Cargo/CTest; los resultados de GitHub Actions deben inspeccionarse tras el commit. Por tanto, configuración, build y tests Qt Test no se ejecutaron. La firma y el prototipo `QPasswordDigestor::deriveKeyPbkdf2(QCryptographicHash::Sha256, data, salt, iterations, dkLen)` se revisaron en la documentación oficial de Qt (Qt Network), pero esto no demuestra que una instalación local Qt 6.4 compile el código ni su comportamiento runtime. Las pruebas se escribieron, pero no están ejecutadas. Comandos de build/test no ejecutados porque falta CMake y la toolchain Qt/C++ no está disponible; no declarar build aprobado. Actualiza esta evidencia si se dispone de entorno nuevo.
 
 La revisión previa registró `cmake -S . -B build -DBUILD_TESTING=ON` con `cmake: command not found` (exit code 127). No se configuró ni compiló el proyecto en ese entorno.
 

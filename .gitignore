@@ -1,3 +1,4 @@
 build/
 cmake-build-*/
 *.sqlite3
+backend/target/

@@ -14,7 +14,7 @@ El login es una **barrera local de la interfaz**, no una identidad web, SSO, aut
 
 ## Credenciales y variables
 
-Aún no hay bóveda de Keychain, Secret Service, Credential Manager ni otro almacén cifrado del sistema operativo. La UI y `ProjectStore` aplican filtros heurísticos según nombres de campo/variable para impedir algunos casos sensibles. La detección no es completa, no cifra valores y no equivale a gestión segura de credenciales. No describas el filtro como una garantía ni recomiendes almacenar secretos en texto claro.
+Aún no hay bóveda de Keychain, Secret Service, Credential Manager ni otro almacén cifrado del sistema operativo. La UI, `ProjectStore` y los nodos HTTP de flujos aplican filtros heurísticos según nombres de campo/variable y algunos patrones comunes de tokens para impedir algunos casos sensibles. Los nodos de flujo validan método, expansión de URL/cuerpo/cabeceras, esquema HTTP/HTTPS y sintaxis básica de cabeceras antes de llamar a la capa de red. La detección no es completa, puede dar falsos positivos, no cifra valores ni SQLite y no equivale a gestión segura de credenciales. La validación sintáctica de cabeceras también cubre solo reglas básicas. No describas el filtro como una garantía ni recomiendes almacenar secretos en texto claro.
 
 ## Historial
 

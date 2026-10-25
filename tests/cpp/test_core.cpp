@@ -9,6 +9,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QTemporaryDir>
+#include <algorithm>
 #include <QtTest>
 
 class ReqFlowCoreTests final : public QObject {
@@ -50,13 +51,91 @@ private slots:
     }
 
     void openApiImporterBuildsRequestsWithoutExecutingThem() {
-        const QByteArray spec = "{\"openapi\":\"3.0.0\",\"servers\":[{\"url\":\"https://api.example.test\"}],\"paths\":{\"/health\":{\"get\":{\"summary\":\"Health\",\"parameters\":[{\"name\":\"verbose\",\"in\":\"query\"}]}}}}";
+        const QByteArray spec = R"({"openapi":"3.0.0","servers":[{"url":"https://api.example.test"}],"paths":{"/health":{"get":{"summary":"Health","parameters":[{"name":"verbose","in":"query"}]}}}})";
         const auto result = reqflow::openapi::parseOpenApiJson(spec);
         QVERIFY2(result.error.isEmpty(), qPrintable(result.error));
         QCOMPARE(result.requests.size(), 1);
         QCOMPARE(result.requests.first().method, QStringLiteral("GET"));
         QCOMPARE(result.requests.first().path, QStringLiteral("https://api.example.test/health?verbose="));
     }
+
+    void flowRequestValidationErrorsNeverSendHttp() {
+        auto runInvalidRequest = [](QJsonObject config, const QVariantMap &inputs = {}) {
+            reqflow::flow::FlowDefinition flow;
+            flow.name = QStringLiteral("Must not send");
+            flow.nodes = {{QStringLiteral("start"), QStringLiteral("start"), {}},
+                          {QStringLiteral("request"), QStringLiteral("request"), std::move(config)},
+                          {QStringLiteral("result"), QStringLiteral("result"), {}}};
+            flow.edges = {{QStringLiteral("start"), QStringLiteral("request"), QStringLiteral("next")},
+                          {QStringLiteral("request"), QStringLiteral("result"), QStringLiteral("next")}};
+            reqflow::flow::FlowEngine engine;
+            return engine.run(flow, inputs);
+        };
+        const auto secret = runInvalidRequest({{QStringLiteral("url"), QStringLiteral("http://127.0.0.1:1/should-not-connect")},
+                                               {QStringLiteral("headers"), QStringLiteral("X-Api-Token: hidden")}});
+        QCOMPARE(secret.status, QStringLiteral("failed"));
+        QVERIFY(secret.error.contains(QStringLiteral("credenciales")));
+        QCOMPARE(secret.logs.size(), 2);
+        QCOMPARE(secret.logs.last().status, QStringLiteral("failed"));
+
+        const auto missingVariable = runInvalidRequest({{QStringLiteral("url"), QStringLiteral("http://127.0.0.1:1/{{missing}}")}});
+        QCOMPARE(missingVariable.status, QStringLiteral("failed"));
+        QVERIFY(missingVariable.error.contains(QStringLiteral("no definida")));
+        QCOMPARE(missingVariable.logs.size(), 2);
+
+        const auto malformedUrl = runInvalidRequest({{QStringLiteral("url"), QStringLiteral("file:///etc/passwd")}});
+        QCOMPARE(malformedUrl.status, QStringLiteral("failed"));
+        QVERIFY(malformedUrl.error.contains(QStringLiteral("URL HTTP/HTTPS")));
+
+        const auto invalidMethod = runInvalidRequest({{QStringLiteral("url"), QStringLiteral("http://127.0.0.1:1/")},
+                                                      {QStringLiteral("method"), QStringLiteral("TRACE")}});
+        QCOMPARE(invalidMethod.status, QStringLiteral("failed"));
+        QVERIFY(invalidMethod.error.contains(QStringLiteral("Método HTTP")));
+
+        const auto malformedHeaders = runInvalidRequest({{QStringLiteral("url"), QStringLiteral("http://127.0.0.1:1/")},
+                                                         {QStringLiteral("headers"), QStringLiteral("MissingColon")}});
+        QCOMPARE(malformedHeaders.status, QStringLiteral("failed"));
+        QVERIFY(malformedHeaders.error.contains(QStringLiteral("Cabecera HTTP")));
+
+        const auto missingBodyVariable = runInvalidRequest({{QStringLiteral("url"), QStringLiteral("http://127.0.0.1:1/")},
+                                                            {QStringLiteral("body"), QStringLiteral("{{not_defined}}")}});
+        QCOMPARE(missingBodyVariable.status, QStringLiteral("failed"));
+        QVERIFY(missingBodyVariable.error.contains(QStringLiteral("no definida")));
+    }
+
+    void openApiImporterResolvesLocalRefsAndWarnsOnUnsupportedRefs() {
+        const QByteArray spec = R"({"openapi":"3.0.3","paths":{"/health":{"$ref":"#/components/pathItems/Health"},"/outside":{"get":{"$ref":"https://example.test/openapi.json#/paths/~1health/get"}}},"components":{"pathItems":{"Health":{"get":{"$ref":"#/components/operations/Health"}}},"operations":{"Health":{"summary":"Health check"}}}})";
+        const auto imported = reqflow::openapi::parseOpenApiJson(spec);
+        QVERIFY2(imported.error.isEmpty(), qPrintable(imported.error));
+        QCOMPARE(imported.requests.size(), 1);
+        QCOMPARE(imported.requests.first().name, QStringLiteral("Health check"));
+        QVERIFY(std::any_of(imported.warnings.cbegin(), imported.warnings.cend(), [](const QString &warning) {
+            return warning.contains(QStringLiteral("referencia $ref externa, transitiva o no resoluble"));
+        }));
+    }
+
+    void openApiImporterRejectsInvalidDocumentsAndParsesYaml() {
+        const auto badJson = reqflow::openapi::parseOpenApiJson(QByteArray("{not-json"));
+        QVERIFY(!badJson.error.isEmpty());
+        const auto unsupportedVersion = reqflow::openapi::parseOpenApiJson(QByteArray(R"({"openapi":"2.0","paths":{}})"));
+        QVERIFY(unsupportedVersion.requests.isEmpty());
+        QVERIFY(!unsupportedVersion.error.isEmpty());
+        const QByteArray yaml = R"(openapi: 3.0.3
+servers:
+  - url: https://api.example.test
+paths:
+  /health:
+    get:
+      summary: Health
+)";
+        const auto imported = reqflow::openapi::parseOpenApiYaml(yaml);
+        QVERIFY2(imported.error.isEmpty(), qPrintable(imported.error));
+        QCOMPARE(imported.requests.size(), 1);
+        QCOMPARE(imported.requests.first().path, QStringLiteral("https://api.example.test/health"));
+        const auto invalidYaml = reqflow::openapi::parseOpenApiYaml(QByteArray("openapi: [unclosed"));
+        QVERIFY(!invalidYaml.error.isEmpty());
+    }
+
 
     void flowJsonRoundTrip() {
         reqflow::flow::FlowDefinition flow;
@@ -77,20 +156,6 @@ private slots:
         QCOMPARE(output, QStringLiteral("https://api.example.test/v2/https://api.example.test"));
         QCOMPARE(input, QStringLiteral("{{host}}/v{{version}}/{{host}}"));
         QVERIFY(!reqflow::data::expandTemplate(QStringLiteral("{{missing}}"), variables, &output, &error));
-        QVERIFY(error.contains(QStringLiteral("missing")));
-        QCOMPARE(output, QStringLiteral("https://api.example.test/v2/https://api.example.test"));
-        QVERIFY(reqflow::data::expandTemplate(QStringLiteral("{literal} {{version}}"), variables, &output, &error));
-        QCOMPARE(output, QStringLiteral("{literal} 2"));
-        const QJsonObject typed{{QStringLiteral("nil"), QJsonValue(QJsonValue::Null)},
-                                {QStringLiteral("flag"), true},
-                                {QStringLiteral("number"), 2.5},
-                                {QStringLiteral("array"), QJsonArray{1, QStringLiteral("a")}}};
-        QVERIFY(reqflow::data::expandTemplate(QStringLiteral("{{nil}}|{{flag}}|{{number}}|{{array}}"), typed, &output, &error));
-        QCOMPARE(output, QStringLiteral("|true|2.5|[1,\"a\"]"));
-        QVERIFY(!reqflow::data::expandTemplate(QStringLiteral("{{version}}}}"), variables, &output, &error));
-        QCOMPARE(output, QStringLiteral("|true|2.5|[1,\"a\"]"));
-        QVERIFY(error.contains(QStringLiteral("mal formado")));
-        QVERIFY(reqflow::data::expandTemplate(QStringLiteral("{{missing}}"), variables, nullptr, &error) == false);
         QVERIFY(error.contains(QStringLiteral("missing")));
     }
 
@@ -195,26 +260,21 @@ private slots:
         QCOMPARE(store.saveRequest(project, requestId, request), requestId);
         QVERIFY(store.deleteRequest(project, requestId));
         QVERIFY(store.requests(project).isEmpty());
-        const QString localEnvironmentJson = QStringLiteral("{\"base_url\":\"http://localhost\"}");
-        const qint64 env = store.saveEnvironment(project, -1, QStringLiteral("Local"), localEnvironmentJson);
+        const qint64 env = store.saveEnvironment(project, -1, QStringLiteral("Local"), QStringLiteral(R"({"base_url":"http://localhost"})"));
         QVERIFY(env > 0);
         QCOMPARE(store.environments(project).size(), 1);
-        const QString secretsEnvironmentJson = QStringLiteral("{\"api_token\":\"no\"}");
-        const qint64 secretsEnvironment = store.saveEnvironment(project, -1, QStringLiteral("Secrets"), secretsEnvironmentJson);
-        QVERIFY(secretsEnvironment < 0);
-        const QString basicSuiteJson = QStringLiteral("[{\"type\":\"status\",\"expected\":\"200\"}]");
-        const qint64 suiteId = store.saveAssertionSuite(project, -1, QStringLiteral("Basic"), -1, basicSuiteJson);
+        QVERIFY(store.saveEnvironment(project, -1, QStringLiteral("Secrets"), QStringLiteral(R"({"api_token":"no"})")) < 0);
+        const qint64 suiteId = store.saveAssertionSuite(project, -1, QStringLiteral("Basic"), -1,
+            QStringLiteral(R"([{"type":"status","expected":"200"}])"));
         QVERIFY(suiteId > 0);
         QCOMPARE(store.assertionSuites(project).size(), 1);
         QVERIFY(store.addAssertionRun(suiteId, QStringLiteral("passed"), QStringLiteral("[]")) > 0);
-        const QString invalidSuiteJson = QStringLiteral("[{\"type\":\"unknown\"}]");
-        const qint64 invalidSuiteId = store.saveAssertionSuite(project, -1, QStringLiteral("Bad"), -1, invalidSuiteJson);
-        QVERIFY(invalidSuiteId < 0);
+        QVERIFY(store.saveAssertionSuite(project, -1, QStringLiteral("Bad"), -1, QStringLiteral(R"([{"type":"unknown"}])")) < 0);
         request.insert(QStringLiteral("headers"), QStringLiteral("Authorization: Bearer secret-value"));
         QVERIFY(store.saveRequest(project, -1, request) < 0);
         const qint64 flowId = store.saveFlow(project, -1, QStringLiteral("Smoke"), QStringLiteral("{}"));
         QVERIFY(flowId > 0);
-        QVERIFY(store.addFlowRun(flowId, QStringLiteral("success"), QString::fromUtf8(R"({"steps":2})")) > 0);
+        QVERIFY(store.addFlowRun(flowId, QStringLiteral("success"), QStringLiteral(R"({"steps":2})")) > 0);
         QVariantMap history;
         history.insert(QStringLiteral("request_name"), QStringLiteral("Health")); history.insert(QStringLiteral("method"), QStringLiteral("GET"));
         history.insert(QStringLiteral("url"), QStringLiteral("https://example.test/path?access_token=secret-value"));

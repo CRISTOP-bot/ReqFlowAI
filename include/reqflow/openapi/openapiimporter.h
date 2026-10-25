@@ -22,7 +22,8 @@ struct ImportResult {
     QString error;
 };
 
-// Supports OpenAPI 3.x JSON documents; unsupported constructs are reported, not guessed.
+// Supports the documented OpenAPI 3.x JSON/YAML subset; unsupported constructs are warned about, not guessed.
 [[nodiscard]] ImportResult parseOpenApiJson(const QByteArray &bytes);
+[[nodiscard]] ImportResult parseOpenApiYaml(const QByteArray &bytes);
 
 } // namespace reqflow::openapi

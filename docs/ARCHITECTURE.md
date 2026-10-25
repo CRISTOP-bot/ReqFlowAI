@@ -12,14 +12,15 @@ La estructura en el repositorio está separada por responsabilidades, aunque la 
 - `include/reqflow/ui/`, `src/ui/`: interfaz Qt Widgets para proyectos, editor HTTP, historial, entornos, suites API, importación OpenAPI y editor de flujos.
 - `include/reqflow/network/`, `src/network/`: cliente HTTP basado en `QNetworkAccessManager`, con señales para resultados asíncronos.
 - `include/reqflow/data/`, `src/data/`: `ProjectStore`, SQLite vía Qt SQL, migración inicial con `CREATE TABLE IF NOT EXISTS` y API Qt para expansión de plantillas.
+- `src/flow/flowengine.cpp`: el nodo HTTP valida credenciales sospechosas, método, variables, URL y cabeceras antes de iniciar la petición. Errores anteriores al envío marcan el nodo/run como fallido y terminan la ejecución. Las pruebas de regresión están añadidas, sin ejecución confirmada en este entorno.
+- `src/openapi/openapiimporter.cpp`, `src/openapi/yaml.cpp`: conversión YAML y análisis del subconjunto OpenAPI común; la importación de `$ref` se limita a referencias locales de un nivel en Path Items/operaciones y advierte sobre el resto.
+- `LICENSE`: licencia Apache-2.0 del proyecto; `backend/Cargo.toml` la declara para la crate Rust.
 - `backend/`: crate Rust `reqflow_backend`, compilada como biblioteca estática e integrada con C++ mediante una FFI C pequeña. En este primer paso implementa la expansión estricta de `{{identificador}}`; el resto del backend sigue en C++/Qt.
 - `src/data/rustbackend.cpp`, `include/reqflow/data/rustbackend.h`: adaptador que serializa el entorno JSON y gestiona propiedad/liberación de strings Rust antes de devolver los resultados a Qt.
 - `CMakeLists.txt`: invoca Cargo durante el build y enlaza la biblioteca Rust con el ejecutable y las pruebas.
 - `.github/workflows/linux-build.yml`: instala Rust, ejecuta pruebas Cargo y después construye y publica como artefacto el ejecutable Linux en `dev` (en `main` se conserva la construcción existente hasta integrar el crate allí).
 
-La frontera FFI entrega buffers UTF-8 propiedad de Rust y sus longitudes exactas; esto incluye valores que contengan bytes NUL. Qt no debe liberarlos con `free`, sino mediante `reqflow_string_free(buffer, length)`. Los errores y salidas también tienen longitudes explícitas; una expansión fallida no expone contenido parcial. El crate depende de `serde_json`; el manejo de red, SQLite y flujos no se ha migrado todavía.
-
-En este primer incremento no se pudo generar `Cargo.lock` porque Cargo no está disponible en el entorno de edición. La crate y su integración siguen pendientes de validación de compilación; véase [Desarrollo y pruebas](DEVELOPMENT.md).
+La frontera FFI entrega strings C UTF-8 propiedad de Rust; Qt no debe liberarlos con `free`, sino mediante `reqflow_string_free`. El backend devuelve errores sin contenido parcial. El crate depende de `serde_json`; el manejo de red, SQLite y flujos no se ha migrado todavía.
 
 ### Flujo de expansión de plantillas
 
@@ -31,11 +32,11 @@ En este primer incremento no se pudo generar `Cargo.lock` porque Cargo no está 
 
 Esta migración es parcial y no convierte aún en Rust el backend entero de la aplicación.
 
-La integración Rust/FFI no se ha compilado ni ejecutado en este entorno. En la revisión del 2026-10-25 se comprobó que `cargo`, `rustc`, `cmake` y `git` no están disponibles en PATH; no se pudo ejecutar Cargo, generar `Cargo.lock`, compilar CMake ni correr Qt Test. Cargo y Rust estable son ahora requisitos obligatorios del build en la rama que contiene esta integración; la CI añadida está pendiente de ejecutarse.
+La integración Rust y su FFI no se han compilado ni ejecutado en este entorno; consulta [Desarrollo y pruebas](DEVELOPMENT.md). Cargo y Rust estable son ahora requisitos obligatorios del build en la rama que contiene esta integración.
 
 `CMakeLists.txt` registra las fuentes del ejecutable y, cuando Qt Test está disponible y `BUILD_TESTING` se activa, define el ejecutable de pruebas. Consulta [Desarrollo y pruebas](DEVELOPMENT.md); no se afirma que el build pase sin ejecutarlo en una toolchain compatible.
 - `include/reqflow/flow/`, `src/flow/`: estructuras, motor de ejecución y editor/canvas visual de flujos.
-- `include/reqflow/openapi/`, `src/openapi/`: parser del subconjunto de OpenAPI JSON que soporta la implementación actual.
+- `include/reqflow/openapi/`, `src/openapi/`: parser del subconjunto de OpenAPI 3.x JSON/YAML actualmente soportado.
 - `include/reqflow/testing/`, `src/testing/`: evaluación de aserciones y comparación de valores JSON.
 - `tests/cpp/test_core.cpp`: pruebas Qt Test de componentes de núcleo y de persistencia/autenticación; no incluye una prueba interactiva de toda la GUI.
 
@@ -47,7 +48,7 @@ La integración Rust/FFI no se ha compilado ni ejecutado en este entorno. En la 
 4. `HttpClient` configura y envía la petición con `QNetworkAccessManager` y emite el resultado; la GUI refleja estado, cuerpo y cabeceras.
 5. La respuesta puede registrarse en SQLite con redacción/omisión conservadora del historial. La UI puede ejecutar una suite guardada y/o mostrar navegación JSON.
 
-La comparación beta lee dos registros existentes de historial; no llama a la red ni altera las respuestas guardadas.
+La comparación beta lee dos registros existentes de historial; solo compara JSON, no llama a la red ni altera las respuestas guardadas. Los cambios de validación en `FlowEngine` detienen el nodo request antes de `HttpClient::send` si fallan filtros heurísticos de secretos, método, plantilla, URL HTTP/HTTPS o formato de cabecera.
 
 ## Almacenamiento local
 

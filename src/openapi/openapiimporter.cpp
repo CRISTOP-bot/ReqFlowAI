@@ -1,4 +1,5 @@
 #include "reqflow/openapi/openapiimporter.h"
+#include "reqflow/openapi/yaml.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -7,6 +8,7 @@
 #include <QRegularExpression>
 
 namespace reqflow::openapi {
+ImportResult parseOpenApiObject(const QJsonObject &root);
 namespace {
 QString methodTitle(QString method) { if(method.isEmpty()) return method; method[0]=method[0].toUpper(); return method; }
 QString schemaSample(const QJsonObject &schema) {
@@ -28,17 +30,54 @@ QString schemaSample(const QJsonObject &schema) {
 ImportResult parseOpenApiJson(const QByteArray &bytes) {
     ImportResult result; QJsonParseError parseError; const auto doc=QJsonDocument::fromJson(bytes,&parseError);
     if(parseError.error!=QJsonParseError::NoError||!doc.isObject()){result.error=QStringLiteral("Documento JSON inválido: ")+parseError.errorString();return result;}
-    const auto root=doc.object(); const QString version=root.value(QStringLiteral("openapi")).toString();
-    if(!version.startsWith(QStringLiteral("3."))){result.error=QStringLiteral("Solo se admite OpenAPI 3.x JSON en esta versión.");return result;}
+    return parseOpenApiObject(doc.object());
+}
+
+ImportResult parseOpenApiYaml(const QByteArray &bytes) {
+    QString yamlError;
+    const QJsonObject root = parseYamlObject(bytes, &yamlError);
+    if (!yamlError.isEmpty()) { ImportResult result; result.error = QStringLiteral("Documento YAML inválido: ") + yamlError; return result; }
+    return parseOpenApiObject(root);
+}
+
+ImportResult parseOpenApiObject(const QJsonObject &root) {
+    ImportResult result;
+    const QString version=root.value(QStringLiteral("openapi")).toString();
+    if(!version.startsWith(QStringLiteral("3."))){result.error=QStringLiteral("Solo se admite OpenAPI 3.x JSON/YAML en esta versión.");return result;}
+    if (!root.value(QStringLiteral("paths")).isObject()) { result.error = QStringLiteral("La propiedad paths debe ser un objeto."); return result; }
     const QString base=root.value(QStringLiteral("servers")).toArray().value(0).toObject().value(QStringLiteral("url")).toString();
     const auto paths=root.value(QStringLiteral("paths")).toObject();
     if(paths.isEmpty()) result.warnings.append(QStringLiteral("La especificación no contiene paths."));
+    const auto components = root.value(QStringLiteral("components")).toObject();
+    auto resolveLocalReference = [&](const QJsonObject &object, const QString &ref) -> QJsonObject {
+        if (!ref.startsWith(QStringLiteral("#/components/"))) return {};
+        QStringList segments = ref.mid(QStringLiteral("#/components/").size()).split(QLatin1Char('/'));
+        QJsonValue current = components;
+        for (QString segment : segments) {
+            segment.replace(QStringLiteral("~1"), QStringLiteral("/"));
+            segment.replace(QStringLiteral("~0"), QStringLiteral("~"));
+            if (!current.isObject()) return {};
+            current = current.toObject().value(segment);
+        }
+        QJsonObject resolved = current.toObject();
+        for (auto it = object.begin(); it != object.end(); ++it)
+            if (it.key() != QStringLiteral("$ref")) resolved.insert(it.key(), it.value());
+        return resolved;
+    };
     static const QStringList methods={"get","post","put","patch","delete","head","options"};
     for(auto pathIt=paths.begin();pathIt!=paths.end();++pathIt){
-        const auto pathObject=pathIt.value().toObject();
+        QJsonObject pathObject = pathIt.value().toObject();
+        if (pathObject.contains(QStringLiteral("$ref"))) {
+            pathObject = resolveLocalReference(pathObject, pathObject.value(QStringLiteral("$ref")).toString());
+            if (pathObject.isEmpty() || pathObject.contains(QStringLiteral("$ref"))) { result.warnings.append(QStringLiteral("Path %1 contiene una referencia $ref externa, transitiva o no resoluble; se omite.").arg(pathIt.key())); continue; }
+        }
         for(const QString &method:methods){
             if(!pathObject.value(method).isObject()) continue;
-            const auto operation=pathObject.value(method).toObject();
+            QJsonObject operation = pathObject.value(method).toObject();
+            if (operation.contains(QStringLiteral("$ref"))) {
+                operation = resolveLocalReference(operation, operation.value(QStringLiteral("$ref")).toString());
+                if (operation.isEmpty() || operation.contains(QStringLiteral("$ref"))) { result.warnings.append(QStringLiteral("%1 %2 contiene una referencia $ref externa, transitiva o no resoluble; se omite.").arg(method.toUpper(), pathIt.key())); continue; }
+            }
             QString operationName=operation.value(QStringLiteral("summary")).toString();
             if(operationName.isEmpty()) operationName=operation.value(QStringLiteral("operationId")).toString();
             if(operationName.isEmpty()) operationName=methodTitle(method)+QStringLiteral(" ")+pathIt.key();
@@ -59,7 +98,6 @@ ImportResult parseOpenApiJson(const QByteArray &bytes) {
             result.requests.append(request);
         }
     }
-    if(root.value(QStringLiteral("components")).isObject()) result.warnings.append(QStringLiteral("Las referencias $ref no se expanden en esta importación inicial."));
     return result;
 }
 } // namespace reqflow::openapi

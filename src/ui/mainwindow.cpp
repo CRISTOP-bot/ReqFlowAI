@@ -13,6 +13,7 @@
 #include <QFontDatabase>
 #include <QFile>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QFormLayout>
 #include <QInputDialog>
 #include <QJsonArray>
@@ -127,7 +128,7 @@ void MainWindow::buildUi() {
     auto *suitesButton = new QPushButton(QStringLiteral("Suites API"));
     projectRow->addWidget(suitesButton);
     connect(suitesButton, &QPushButton::clicked, this, &MainWindow::manageAssertionSuites);
-    auto *openApiButton = new QPushButton(QStringLiteral("Importar OpenAPI JSON"));
+    auto *openApiButton = new QPushButton(QStringLiteral("Importar OpenAPI"));
     projectRow->addWidget(openApiButton);
     connect(openApiButton, &QPushButton::clicked, this, &MainWindow::importOpenApi);
     projectRow->addStretch();
@@ -421,11 +422,15 @@ void MainWindow::openFlowEditor() {
 
 void MainWindow::importOpenApi() {
     if (projectId_ <= 0) { QMessageBox::warning(this, QStringLiteral("Proyecto requerido"), QStringLiteral("Crea o selecciona un proyecto primero.")); return; }
-    const QString fileName = QFileDialog::getOpenFileName(this, QStringLiteral("Importar especificación OpenAPI JSON"), {}, QStringLiteral("JSON (*.json);;Todos los archivos (*)"));
+    const QString fileName = QFileDialog::getOpenFileName(this, QStringLiteral("Importar especificación OpenAPI"), {}, QStringLiteral("OpenAPI JSON/YAML (*.json *.yaml *.yml);;JSON (*.json);;YAML (*.yaml *.yml);;Todos los archivos (*)"));
     if (fileName.isEmpty()) return;
     QFile file(fileName);
     if (!file.open(QIODevice::ReadOnly)) { QMessageBox::warning(this, QStringLiteral("No se pudo leer"), file.errorString()); return; }
-    const auto imported = openapi::parseOpenApiJson(file.readAll());
+    const QByteArray specification = file.readAll();
+    const QString suffix = QFileInfo(fileName).suffix().toLower();
+    const auto imported = (suffix == QStringLiteral("yaml") || suffix == QStringLiteral("yml"))
+        ? openapi::parseOpenApiYaml(specification)
+        : openapi::parseOpenApiJson(specification);
     if (!imported.error.isEmpty()) { QMessageBox::warning(this, QStringLiteral("OpenAPI no compatible"), imported.error); return; }
     if (imported.requests.isEmpty()) { QMessageBox::information(this, QStringLiteral("Sin operaciones"), imported.warnings.join(QLatin1Char('\n'))); return; }
     const QString detail = QStringLiteral("Se crearán %1 peticiones guardadas (no se enviarán).\n\nAdvertencias:\n%2").arg(imported.requests.size()).arg(imported.warnings.isEmpty() ? QStringLiteral("Ninguna") : imported.warnings.join(QLatin1Char('\n')));

@@ -28,7 +28,8 @@ jobs:
             ninja-build \
             qt6-base-dev \
             qt6-base-dev-tools \
-            libqt6sql6-sqlite
+            libqt6sql6-sqlite \
+            libyaml-cpp-dev
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -42,10 +43,10 @@ jobs:
       - name: Test Rust backend
         run: cargo test --manifest-path backend/Cargo.toml
 
-      - name: Compile application and C++ tests
+      - name: Compile executable and core tests
         run: cmake --build build --parallel 2
 
-      - name: Test C++ core
+      - name: Run Qt core tests
         run: ctest --test-dir build --output-on-failure
 
       - name: Package Linux executable

@@ -59,11 +59,15 @@ QByteArray substitute(const QString &text, const QVariantMap &vars, QString *err
     }
     for (auto it = matches.crbegin(); it != matches.crend(); ++it)
         output.replace(it->capturedStart(), it->capturedLength(), vars.value(it->captured(1)).toString());
+    if (output.contains(QStringLiteral("{{")) || output.contains(QStringLiteral("}}"))) {
+        *error = QStringLiteral("Plantilla mal formada; se esperaba {{identificador}}.");
+        return {};
+    }
     return output.toUtf8();
 }
 
 QJsonValue redactedJson(const QJsonValue &value) {
-    static const QRegularExpression sensitive(QStringLiteral("password|passwd|secret|token|authorization|cookie|api[_-]?key|client[_-]?secret"), QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression sensitive(QStringLiteral("password|passwd|secret|token|authorization|auth|cookie|api[_-]?key|client[_-]?secret|credential|private[_-]?key"), QRegularExpression::CaseInsensitiveOption);
     if (value.isObject()) {
         QJsonObject output;
         const auto object = value.toObject();
@@ -80,7 +84,7 @@ QJsonValue redactedJson(const QJsonValue &value) {
 }
 
 QString redactRequestConfig(const QJsonObject &config) {
-    static const QRegularExpression sensitive(QStringLiteral("password|passwd|secret|token|authorization|cookie|api[_-]?key|client[_-]?secret"), QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression sensitive(QStringLiteral("password|passwd|secret|token|authorization|auth|cookie|api[_-]?key|client[_-]?secret|credential|private[_-]?key"), QRegularExpression::CaseInsensitiveOption);
     QJsonObject safe = config;
     for (auto it = safe.begin(); it != safe.end(); ++it) {
         if (sensitive.match(it.key()).hasMatch()) it.value() = QStringLiteral("[REDACTED]");
@@ -100,15 +104,39 @@ QString redactRequestConfig(const QJsonObject &config) {
     return QString::fromUtf8(QJsonDocument(safe).toJson(QJsonDocument::Compact));
 }
 
-bool containsSecret(const QJsonObject &config) {
-    static const QRegularExpression sensitive(QStringLiteral("password|passwd|secret|token|authorization|cookie|api[_-]?key|client[_-]?secret"), QRegularExpression::CaseInsensitiveOption);
-    for (auto it = config.begin(); it != config.end(); ++it) {
-        if (sensitive.match(it.key()).hasMatch()) return true;
-        if (it.key() == QStringLiteral("url") || it.key() == QStringLiteral("headers") || it.key() == QStringLiteral("body") || it.key() == QStringLiteral("params")) {
-            if (sensitive.match(it.value().toString()).hasMatch()) return true;
+bool containsSecretValue(const QJsonValue &value, const QString &fieldName = {}) {
+    static const QRegularExpression sensitiveName(QStringLiteral("password|passwd|secret|token|authorization|auth|cookie|api[_-]?key|client[_-]?secret|credential|private[_-]?key"), QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression credentialValue(QStringLiteral("\\b(?:Bearer|Basic)\\s+[A-Za-z0-9._~+/=-]{8,}|\\bsk-[A-Za-z0-9_-]{12,}|\\b(?:gh[pousr]_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{16})\\b"), QRegularExpression::CaseInsensitiveOption);
+    if (!fieldName.isEmpty() && sensitiveName.match(fieldName).hasMatch()) return true;
+    if (value.isObject()) {
+        const auto object = value.toObject();
+        for (auto it = object.begin(); it != object.end(); ++it)
+            if (containsSecretValue(it.value(), it.key())) return true;
+    } else if (value.isArray()) {
+        for (const auto &item : value.toArray())
+            if (containsSecretValue(item)) return true;
+    } else if (value.isString()) {
+        const QString text = value.toString();
+        if (credentialValue.match(text).hasMatch()) return true;
+        if (fieldName.compare(QStringLiteral("url"), Qt::CaseInsensitive) == 0) {
+            const QUrl url(text);
+            if (!url.userInfo().isEmpty()) return true;
+            const QUrlQuery query(url);
+            for (const auto &item : query.queryItems(QUrl::FullyDecoded))
+                if (sensitiveName.match(item.first).hasMatch()) return true;
+        }
+        if (fieldName.compare(QStringLiteral("headers"), Qt::CaseInsensitive) == 0) {
+            for (const QString &line : text.split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
+                const int colon = line.indexOf(QLatin1Char(':'));
+                if (colon > 0 && sensitiveName.match(line.left(colon)).hasMatch()) return true;
+            }
         }
     }
     return false;
+}
+
+bool containsSecret(const QJsonObject &config) {
+    return containsSecretValue(config);
 }
 }
 
@@ -187,7 +215,7 @@ QStringList validate(const FlowDefinition &flow) {
 FlowRun FlowEngine::run(const FlowDefinition &flow, const QVariantMap &inputs,
                         const std::atomic_bool *cancel, int maxSteps) const {
     FlowRun run; run.variables = inputs;
-    static const QRegularExpression sensitiveInput(QStringLiteral("password|passwd|secret|token|authorization|cookie|api[_-]?key|client[_-]?secret"), QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression sensitiveInput(QStringLiteral("password|passwd|secret|token|authorization|auth|cookie|api[_-]?key|client[_-]?secret|credential|private[_-]?key"), QRegularExpression::CaseInsensitiveOption);
     for (auto it = run.variables.begin(); it != run.variables.end(); ++it)
         if (sensitiveInput.match(it.key()).hasMatch()) it.value() = QStringLiteral("[REDACTED]");
     const QStringList errors = validate(flow);
@@ -209,27 +237,57 @@ FlowRun FlowEngine::run(const FlowDefinition &flow, const QVariantMap &inputs,
         const auto config = node.config;
         if (node.type == QStringLiteral("request")) {
             network::HttpRequest request;
-            if (containsSecret(config)) { error = QStringLiteral("Este nodo parece contener credenciales y se bloqueó: no hay bóveda segura."); }
-            request.method = config.value(QStringLiteral("method")).toString(QStringLiteral("GET")).toLatin1();
-            request.url = QUrl(QString::fromUtf8(substitute(config.value(QStringLiteral("url")).toString(), run.variables, &error)));
-            request.body = substitute(config.value(QStringLiteral("body")).toString(), run.variables, &error);
+            if (containsSecret(config)) error = QStringLiteral("Este nodo parece contener credenciales y se bloqueó: no hay bóveda segura.");
+            const QString method = config.value(QStringLiteral("method")).toString(QStringLiteral("GET")).trimmed().toUpper();
+            static const QSet<QString> allowedMethods{QStringLiteral("GET"), QStringLiteral("POST"), QStringLiteral("PUT"), QStringLiteral("PATCH"), QStringLiteral("DELETE"), QStringLiteral("HEAD"), QStringLiteral("OPTIONS")};
+            if (error.isEmpty() && !allowedMethods.contains(method)) error = QStringLiteral("Método HTTP no permitido.");
+            request.method = method.toLatin1();
+            QByteArray expandedUrl;
+            if (error.isEmpty()) expandedUrl = substitute(config.value(QStringLiteral("url")).toString(), run.variables, &error);
+            if (error.isEmpty()) {
+                request.url = QUrl(QString::fromUtf8(expandedUrl));
+                if (!request.url.isValid() || (request.url.scheme() != QStringLiteral("http") && request.url.scheme() != QStringLiteral("https")) || request.url.host().isEmpty())
+                    error = QStringLiteral("URL HTTP/HTTPS no válida en el nodo de petición.");
+            }
+            if (error.isEmpty()) request.body = substitute(config.value(QStringLiteral("body")).toString(), run.variables, &error);
             request.timeoutMs = qBound(1000, config.value(QStringLiteral("timeout_ms")).toInt(20000), 120000);
-            const QStringList headers = QString::fromUtf8(substitute(config.value(QStringLiteral("headers")).toString(), run.variables, &error)).split('\n', Qt::SkipEmptyParts);
-            for (const QString &line : headers) { const int colon=line.indexOf(':'); if(colon>0) request.headers.insert(line.left(colon).trimmed().toLatin1(),line.mid(colon+1).trimmed().toLatin1()); }
-            QEventLoop loop; network::HttpResponse response;
-            const auto connection = QObject::connect(&client, &network::HttpClient::finished, &loop, [&](const network::HttpResponse &value) { response=value; loop.quit(); });
-            client.send(request); loop.exec(); QObject::disconnect(connection);
-            if (!response.error.isEmpty()) error = response.error;
-            run.variables.insert(QStringLiteral("response.status"), response.status);
-            run.variables.insert(QStringLiteral("response.body"), QStringLiteral("[REDACTED: body omitted from persistent flow state]"));
-            run.variables.insert(QStringLiteral("response.elapsed_ms"), response.elapsedMs);
-            const QJsonDocument responseDocument = QJsonDocument::fromJson(response.body);
-            if (responseDocument.isObject()) run.variables.insert(QStringLiteral("response.json"), redactedJson(responseDocument.object()).toObject().toVariantMap());
-            else if (responseDocument.isArray()) run.variables.insert(QStringLiteral("response.json"), redactedJson(responseDocument.array()).toArray().toVariantList());
-            else run.variables.insert(QStringLiteral("response.json"), QVariant{});
-            output.insert(QStringLiteral("status"), response.status); output.insert(QStringLiteral("elapsed_ms"), response.elapsedMs); output.insert(QStringLiteral("size_bytes"), response.sizeBytes());
-            const int expected = config.value(QStringLiteral("expected_status")).toInt(0);
-            if (expected && response.status != expected) error = QStringLiteral("HTTP %1; esperado %2").arg(response.status).arg(expected);
+            if (error.isEmpty()) {
+                const QString headerText = QString::fromUtf8(substitute(config.value(QStringLiteral("headers")).toString(), run.variables, &error));
+                if (error.isEmpty()) {
+                    static const QRegularExpression headerName(QStringLiteral("^[!#$%&'*+.^_`|~0-9A-Za-z-]+$"));
+                    for (const QString &line : headerText.split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
+                        const int colon = line.indexOf(QLatin1Char(':'));
+                        const QString name = colon > 0 ? line.left(colon).trimmed() : QString{};
+                        const QString value = colon > 0 ? line.mid(colon + 1).trimmed() : QString{};
+                        if (colon <= 0 || !headerName.match(name).hasMatch() || value.contains(QLatin1Char('\r')) || value.contains(QChar::Null)) {
+                            error = QStringLiteral("Cabecera HTTP no válida en el nodo de petición.");
+                            break;
+                        }
+                        request.headers.insert(name.toLatin1(), value.toLatin1());
+                    }
+                }
+            }
+            network::HttpResponse response;
+            if (error.isEmpty()) {
+                QEventLoop loop;
+                const auto connection = QObject::connect(&client, &network::HttpClient::finished, &loop, [&](const network::HttpResponse &value) { response = value; loop.quit(); });
+                client.send(request);
+                loop.exec();
+                QObject::disconnect(connection);
+            }
+            if (error.isEmpty() && !response.error.isEmpty()) error = response.error;
+            if (error.isEmpty()) {
+                run.variables.insert(QStringLiteral("response.status"), response.status);
+                run.variables.insert(QStringLiteral("response.body"), QStringLiteral("[REDACTED: body omitted from persistent flow state]"));
+                run.variables.insert(QStringLiteral("response.elapsed_ms"), response.elapsedMs);
+                const QJsonDocument responseDocument = QJsonDocument::fromJson(response.body);
+                if (responseDocument.isObject()) run.variables.insert(QStringLiteral("response.json"), redactedJson(responseDocument.object()).toObject().toVariantMap());
+                else if (responseDocument.isArray()) run.variables.insert(QStringLiteral("response.json"), redactedJson(responseDocument.array()).toArray().toVariantList());
+                else run.variables.insert(QStringLiteral("response.json"), QVariant{});
+                output.insert(QStringLiteral("status"), response.status); output.insert(QStringLiteral("elapsed_ms"), response.elapsedMs); output.insert(QStringLiteral("size_bytes"), response.sizeBytes());
+                const int expected = config.value(QStringLiteral("expected_status")).toInt(0);
+                if (expected && response.status != expected) error = QStringLiteral("HTTP %1; esperado %2").arg(response.status).arg(expected);
+            }
         } else if (node.type == QStringLiteral("extract")) {
             const auto source = config.value(QStringLiteral("source")).toString(QStringLiteral("response.json"));
             const auto value = lookupPath(run.variables.value(source), config.value(QStringLiteral("path")).toString(QStringLiteral("$")));
