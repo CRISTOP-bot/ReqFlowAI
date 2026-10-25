@@ -57,6 +57,10 @@ cmake --build build --parallel
 ./build/reqflow-ai
 ```
 
+### Compilación automática para Linux
+
+Cada push a `main` o `dev` activa GitHub Actions para compilar `reqflow-ai` en Ubuntu 24.04 con CMake, Ninja y Qt 6. Si el build termina correctamente, el ejecutable queda adjunto como artefacto descargable en esa ejecución del workflow.
+
 Pruebas:
 
 ```sh

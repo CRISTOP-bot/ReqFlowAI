@@ -1,0 +1,50 @@
+name: Linux build
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ReqFlow AI (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install Qt and build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            cmake \
+            g++ \
+            ninja-build \
+            qt6-base-dev \
+            qt6-base-dev-tools \
+            libqt6sql6-sqlite
+
+      - name: Configure
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_TESTING=OFF
+
+      - name: Compile executable
+        run: cmake --build build --target reqflow-ai --parallel 2
+
+      - name: Package Linux executable
+        run: tar -czf build/reqflow-ai-linux.tar.gz -C build reqflow-ai
+
+      - name: Upload Linux executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: reqflow-ai-linux-${{ github.ref_name }}
+          path: build/reqflow-ai-linux.tar.gz
+          if-no-files-found: error
