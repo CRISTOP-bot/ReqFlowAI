@@ -30,7 +30,8 @@ ImportResult parseOpenApiJson(const QByteArray &bytes) {
     if(parseError.error!=QJsonParseError::NoError||!doc.isObject()){result.error=QStringLiteral("Documento JSON inválido: ")+parseError.errorString();return result;}
     const auto root=doc.object(); const QString version=root.value(QStringLiteral("openapi")).toString();
     if(!version.startsWith(QStringLiteral("3."))){result.error=QStringLiteral("Solo se admite OpenAPI 3.x JSON en esta versión.");return result;}
-    const QString base=root.value(QStringLiteral("servers")).toArray().value(0).toObject().value(QStringLiteral("url")).toString();
+    const auto servers = root.value(QStringLiteral("servers")).toArray();
+    const QString base = servers.isEmpty() ? QString{} : servers.first().toObject().value(QStringLiteral("url")).toString();
     const auto paths=root.value(QStringLiteral("paths")).toObject();
     if(paths.isEmpty()) result.warnings.append(QStringLiteral("La especificación no contiene paths."));
     static const QStringList methods={"get","post","put","patch","delete","head","options"};
