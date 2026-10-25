@@ -46,7 +46,7 @@ Quedan fuera: nodos de espera/reintento/loop, exportación/versionado formal de 
 
 - C++20.
 - CMake 3.21 o posterior.
-- Qt 6.4 o posterior: Core, Widgets, Network, Sql; Qt Test opcional para pruebas.
+- Qt 6.4 o posterior: Core, Widgets, Network, Sql; Qt Test requerido por el workflow CI y opcional para builds locales.
 - Driver QSQLITE habilitado en el paquete de Qt.
 
 ## Compilar y ejecutar
@@ -59,7 +59,7 @@ cmake --build build --parallel
 
 ### Compilación automática para Linux
 
-Cada push a `main` o `dev` activa GitHub Actions para compilar `reqflow-ai` en Ubuntu 24.04 con CMake, Ninja y Qt 6. Si el build termina correctamente, el ejecutable queda adjunto como artefacto descargable en esa ejecución del workflow.
+Cada push a `main` o `dev` activa GitHub Actions para compilar la aplicación y los tests Qt en Ubuntu 24.04 con CMake, Ninja y Qt 6, ejecutar CTest y, solo si todo pasa, adjuntar el ejecutable Linux como artefacto.
 
 Pruebas:
 
@@ -68,6 +68,8 @@ cmake -S . -B build -DBUILD_TESTING=ON
 cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
+
+La batería de pruebas incluye una regresión que comprueba que un nodo de flujo con una cabecera que parece contener credenciales falla antes de enviar la petición. La prueba confirma que no se producen variables de respuesta. El filtro es heurístico y no cifra SQLite ni sustituye una bóveda segura.
 
 Datos locales en `~/.local/share/reqflow-ai/reqflow.sqlite3`.
 
@@ -78,3 +80,8 @@ La disponibilidad de herramientas debe comprobarse en el entorno de cada build. 
 ## Uso seguro
 
 Enviar una petición puede modificar un servidor. Verifica destino, método y contenido, y usa solo APIs que tengas autorización para probar. Sin bóveda del sistema operativo disponible, la interfaz bloquea guardar/enviar peticiones con nombres de campos que parecen secretos; esto es un filtro conservador, no un gestor de credenciales ni una garantía de detección. No guardes tokens en texto libre. La aplicación es offline salvo las peticiones HTTP que el usuario envíe.
+
+
+## Seguridad y credenciales
+
+Consulta [docs/SECURITY.md](docs/SECURITY.md) para conocer el límite de protección local, el filtro heurístico de credenciales y la regresión de flujo HTTP. La base SQLite no está cifrada y el filtro no sustituye una bóveda segura.

@@ -48,6 +48,27 @@ private slots:
         QCOMPARE(run.logs.size(), 3);
     }
 
+    void flowRequestWithSecretIsRejectedBeforeNetwork() {
+        reqflow::flow::FlowDefinition flow;
+        flow.name = QStringLiteral("Reject credentials before network");
+        flow.nodes = {{QStringLiteral("start"), QStringLiteral("start"), {}},
+                      {QStringLiteral("request"), QStringLiteral("request"),
+                       {{QStringLiteral("url"), QStringLiteral("http://127.0.0.1:1/never-send")},
+                        {QStringLiteral("headers"), QStringLiteral("Authorization: Bearer synthetic-token")}}},
+                      {QStringLiteral("result"), QStringLiteral("result"), {}}};
+        flow.edges = {{QStringLiteral("start"), QStringLiteral("request"), QStringLiteral("next")},
+                      {QStringLiteral("request"), QStringLiteral("result"), QStringLiteral("next")}};
+
+        reqflow::flow::FlowEngine engine;
+        const auto run = engine.run(flow, {});
+        QCOMPARE(run.status, QStringLiteral("failed"));
+        QVERIFY(run.error.contains(QStringLiteral("se bloqueó")));
+        QCOMPARE(run.logs.size(), 2);
+        QCOMPARE(run.logs.last().status, QStringLiteral("failed"));
+        QVERIFY(!run.variables.contains(QStringLiteral("response.status")));
+        QVERIFY(!run.variables.contains(QStringLiteral("response.elapsed_ms")));
+    }
+
     void openApiImporterBuildsRequestsWithoutExecutingThem() {
         const QByteArray spec = R"({"openapi":"3.0.0","servers":[{"url":"https://api.example.test"}],"paths":{"/health":{"get":{"summary":"Health","parameters":[{"name":"verbose","in":"query"}]}}}})";
         const auto result = reqflow::openapi::parseOpenApiJson(spec);

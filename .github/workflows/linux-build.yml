@@ -34,10 +34,13 @@ jobs:
         run: >-
           cmake -S . -B build -G Ninja
           -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_TESTING=OFF
+          -DBUILD_TESTING=ON
 
-      - name: Compile executable
-        run: cmake --build build --target reqflow-ai --parallel 2
+      - name: Compile application and core tests
+        run: cmake --build build --parallel 2
+
+      - name: Run core tests
+        run: ctest --test-dir build --output-on-failure
 
       - name: Package Linux executable
         run: tar -czf build/reqflow-ai-linux.tar.gz -C build reqflow-ai

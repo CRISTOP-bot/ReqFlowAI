@@ -208,8 +208,10 @@ FlowRun FlowEngine::run(const FlowDefinition &flow, const QVariantMap &inputs,
         QList<FlowEdge> next = outgoing.value(current);
         const auto config = node.config;
         if (node.type == QStringLiteral("request")) {
+            if (containsSecret(config)) {
+                error = QStringLiteral("Este nodo parece contener credenciales y se bloqueó: no hay bóveda segura.");
+            } else {
             network::HttpRequest request;
-            if (containsSecret(config)) { error = QStringLiteral("Este nodo parece contener credenciales y se bloqueó: no hay bóveda segura."); }
             request.method = config.value(QStringLiteral("method")).toString(QStringLiteral("GET")).toLatin1();
             request.url = QUrl(QString::fromUtf8(substitute(config.value(QStringLiteral("url")).toString(), run.variables, &error)));
             request.body = substitute(config.value(QStringLiteral("body")).toString(), run.variables, &error);
@@ -230,6 +232,7 @@ FlowRun FlowEngine::run(const FlowDefinition &flow, const QVariantMap &inputs,
             output.insert(QStringLiteral("status"), response.status); output.insert(QStringLiteral("elapsed_ms"), response.elapsedMs); output.insert(QStringLiteral("size_bytes"), response.sizeBytes());
             const int expected = config.value(QStringLiteral("expected_status")).toInt(0);
             if (expected && response.status != expected) error = QStringLiteral("HTTP %1; esperado %2").arg(response.status).arg(expected);
+            }
         } else if (node.type == QStringLiteral("extract")) {
             const auto source = config.value(QStringLiteral("source")).toString(QStringLiteral("response.json"));
             const auto value = lookupPath(run.variables.value(source), config.value(QStringLiteral("path")).toString(QStringLiteral("$")));
