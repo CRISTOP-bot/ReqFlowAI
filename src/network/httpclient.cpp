@@ -65,7 +65,7 @@ QNetworkReply *HttpClient::send(const HttpRequest &request) {
         for (const auto &header : rawHeaders)
             response.headers.append(qMakePair(header.first, header.second));
         activeReplies_.removeAll(reply);
-        timer->deleteLater();
+        delete timer;
         reply->deleteLater();
         emit finished(response);
     });

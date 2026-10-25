@@ -38,7 +38,7 @@ El target `reqflow-core-tests` cubre contratos seleccionados del cliente HTTP, p
 
 ## Evidencia y reportes
 
-El primer run de CI con la integración Rust (`c49e514`, run 40222792370) instaló y configuró correctamente Ubuntu 24.04/Qt, y las seis pruebas Cargo pasaron. La compilación del target de pruebas C++ falló en Qt MOC con `missing ')' in macro usage` en `tests/cpp/test_core.cpp`; se ha aislado una edición correctiva para el re-run. Por tanto, ese run no valida el build completo y no se afirma que Qt Test pase. El resultado del run posterior se añadirá una vez termine.
+El primer run de CI con la integración Rust (`c49e514`, run 40222792370) instaló/configuró Ubuntu 24.04/Qt y las seis pruebas Cargo pasaron, pero se detuvo en Qt MOC. En el run siguiente (`bd8992f`, 40223089061) MOC se superó y la compilación encontró un error preexistente en `src/network/httpclient.cpp`: se llamaba `deleteLater()` sobre `QElapsedTimer`, que no es un QObject. Se corrigió esa llamada a `delete`, que también hace explícita la liberación del timer y resuelve un bloqueo para compilar el target C++; el CI posterior de ese cambio sigue pendiente. No declarar el build global ni Qt Test aprobados hasta que ese run finalice correctamente.
 
 La evidencia previa de autenticación/login corresponde a otra edición: `git`, `cmake`, `g++`, `qmake6` y `pkg-config` no estaban disponibles entonces; no debe confundirse con el nuevo run de GitHub Actions.
 
