@@ -59,7 +59,7 @@ cmake --build build --parallel
 
 ### Compilación automática para Linux
 
-Cada push a `main` o `dev` compila la aplicación y los tests Qt en Ubuntu 24.04, y ejecuta CTest. Los pushes exitosos a `main` publican una pre-release automatizada con identificador de commit; las etiquetas `v*` publican una release normal. Ambas adjuntan `reqflow-ai-linux.tar.gz`. El tarball contiene el ejecutable; Qt 6 y sus bibliotecas de runtime deben estar disponibles en el sistema. Las pre-releases CI no son versiones estables.
+Cada push a `main` o `dev` compila la aplicación y los tests Qt en Ubuntu 24.04, y ejecuta CTest. Los pushes exitosos a `main` publican una pre-release automatizada con identificador de commit; las etiquetas `v*` publican una release normal. Ambas adjuntan un paquete `.deb` para Ubuntu 24.04 y `reqflow-ai-linux.tar.gz`. El `.deb` instala la app, añade un acceso al menú y declara sus dependencias; instala el paquete con el instalador de software de Ubuntu o con `sudo apt install ./reqflow-ai_*.deb`. Las pre-releases CI no son versiones estables. El tarball portátil sigue requiriendo las bibliotecas de runtime Qt 6 del sistema.
 
 Pruebas:
 
@@ -89,4 +89,15 @@ Consulta [docs/SECURITY.md](docs/SECURITY.md) para conocer el límite de protecc
 
 ## Releases y artefactos Linux
 
-GitHub Actions compila la aplicación y ejecuta Qt Test/CTest antes de empaquetar. Si falla build o test, no se publica el artefacto ni la release. Un push exitoso a `main` publica una **pre-release CI** con tag `ci-<sha-corto>`; los pushes de tags `v*` publican releases de versión. En ambos casos se adjunta `reqflow-ai-linux.tar.gz`. El tarball es el ejecutable compilado y requiere que el runtime de Qt 6 y sus bibliotecas estén disponibles. La pre-release identificada por commit sirve para probar builds; no es una versión estable.
+GitHub Actions compila la aplicación y ejecuta Qt Test/CTest antes de empaquetar. Si falla build o test, no se publica el artefacto ni la release. Un push exitoso a `main` publica una **pre-release CI** con tag `ci-<sha-corto>`; los pushes de tags `v*` publican releases de versión. En ambos casos se adjuntan `reqflow-ai-linux.tar.gz` y `reqflow-ai_<versión>_amd64.deb` (la versión del `.deb` sigue la versión CMake del proyecto). El tarball es el ejecutable compilado y requiere que el runtime de Qt 6 y sus bibliotecas estén disponibles. La pre-release identificada por commit sirve para probar builds; no es una versión estable.
+
+
+### Instalar en Ubuntu 24.04
+
+Descarga el archivo `reqflow-ai_*.deb` de la sección Assets de una release y ábrelo con el instalador de software. También puedes instalarlo desde la carpeta de descargas:
+
+```sh
+sudo apt install ./reqflow-ai_*.deb
+```
+
+El paquete instala ReqFlow AI y agrega un lanzador al menú de aplicaciones; APT resuelve las dependencias declaradas. El instalador `.deb` está preparado para Ubuntu 24.04 amd64.

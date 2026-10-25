@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=ReqFlow AI
+GenericName=HTTP API Client
+Comment=Create and send HTTP requests without writing code
+Exec=reqflow-ai
+Icon=applications-internet
+Terminal=false
+Categories=Development;Network;
+StartupNotify=true

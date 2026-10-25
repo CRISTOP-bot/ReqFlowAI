@@ -1,4 +1,4 @@
-name: Linux build
+name: Linux build and Debian installer
 
 on:
   push:
@@ -31,7 +31,8 @@ jobs:
             ninja-build \
             qt6-base-dev \
             qt6-base-dev-tools \
-            libqt6sql6-sqlite
+            libqt6sql6-sqlite \
+            dpkg-dev
 
       - name: Configure
         run: >-
@@ -45,14 +46,20 @@ jobs:
       - name: Run core tests
         run: ctest --test-dir build --output-on-failure
 
-      - name: Package Linux executable
-        run: tar -czf build/reqflow-ai-linux.tar.gz -C build reqflow-ai
+      - name: Package Linux executable and Debian installer
+        run: |
+          tar -czf build/reqflow-ai-linux.tar.gz -C build reqflow-ai
+          version=$(sed -n 's/^project(ReqFlowAI VERSION \([^ )]*\).*/\1/p' CMakeLists.txt)
+          test -n "$version"
+          packaging/build-deb.sh build/reqflow-ai "$version" "build/reqflow-ai_${version}_amd64.deb"
 
-      - name: Upload Linux executable as workflow artifact
+      - name: Upload Linux packages as workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: reqflow-ai-linux-${{ github.ref_name }}-${{ github.sha }}
-          path: build/reqflow-ai-linux.tar.gz
+          path: |
+            build/reqflow-ai-linux.tar.gz
+            build/reqflow-ai_*.deb
           if-no-files-found: error
           retention-days: 30
 
@@ -68,18 +75,18 @@ jobs:
             tag="${GITHUB_REF#refs/tags/}"
             prerelease_args=()
             title="ReqFlow AI ${tag} · Linux"
-            notes="Release de ReqFlow AI para Linux, compilada y probada por GitHub Actions. Commit: ${GITHUB_SHA}. El archivo contiene el ejecutable; Qt 6 y sus bibliotecas de runtime deben estar disponibles en el sistema."
+            notes="Release de ReqFlow AI para Linux, compilada y probada por GitHub Actions. Commit: ${GITHUB_SHA}. Incluye el tarball portable y un paquete .deb para Ubuntu 24.04; el .deb declara las dependencias de runtime."
           else
             tag="ci-${GITHUB_SHA:0:12}"
             prerelease_args=(--prerelease)
             title="ReqFlow AI CI ${GITHUB_SHA:0:7} · Linux"
-            notes="Build automática de la rama main. No es una versión estable. Compilación y CTest pasaron en GitHub Actions. Commit: ${GITHUB_SHA}. El archivo contiene el ejecutable; Qt 6 y sus bibliotecas de runtime deben estar disponibles en el sistema."
+            notes="Build automática de la rama main. No es una versión estable. Compilación y CTest pasaron en GitHub Actions. Commit: ${GITHUB_SHA}. Incluye el tarball portable y un paquete .deb para Ubuntu 24.04; el .deb declara las dependencias de runtime."
           fi
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$tag" build/reqflow-ai-linux.tar.gz \
+            gh release upload "$tag" build/reqflow-ai-linux.tar.gz build/reqflow-ai_*.deb \
               --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$tag" build/reqflow-ai-linux.tar.gz \
+            gh release create "$tag" build/reqflow-ai-linux.tar.gz build/reqflow-ai_*.deb \
               --repo "$GITHUB_REPOSITORY" \
               --title "$title" \
               --notes "$notes" \
