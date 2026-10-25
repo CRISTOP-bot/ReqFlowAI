@@ -195,8 +195,8 @@ private slots:
         QCOMPARE(store.saveRequest(project, requestId, request), requestId);
         QVERIFY(store.deleteRequest(project, requestId));
         QVERIFY(store.requests(project).isEmpty());
-        const QByteArray localEnvironmentJson = R"({"base_url":"http://localhost"})";
-        const qint64 env = store.saveEnvironment(project, -1, QStringLiteral("Local"), QString::fromUtf8(localEnvironmentJson));
+        const QString localEnvironmentJson = QStringLiteral("{\"base_url\":\"http://localhost\"}");
+        const qint64 env = store.saveEnvironment(project, -1, QStringLiteral("Local"), localEnvironmentJson);
         QVERIFY(env > 0);
         QCOMPARE(store.environments(project).size(), 1);
         const QString secretsEnvironmentJson = QStringLiteral("{\"api_token\":\"no\"}");
@@ -207,7 +207,9 @@ private slots:
         QVERIFY(suiteId > 0);
         QCOMPARE(store.assertionSuites(project).size(), 1);
         QVERIFY(store.addAssertionRun(suiteId, QStringLiteral("passed"), QStringLiteral("[]")) > 0);
-        QVERIFY(store.saveAssertionSuite(project, -1, QStringLiteral("Bad"), -1, QString::fromUtf8(R"([{"type":"unknown"}])")) < 0);
+        const QString invalidSuiteJson = QStringLiteral("[{\"type\":\"unknown\"}]");
+        const qint64 invalidSuiteId = store.saveAssertionSuite(project, -1, QStringLiteral("Bad"), -1, invalidSuiteJson);
+        QVERIFY(invalidSuiteId < 0);
         request.insert(QStringLiteral("headers"), QStringLiteral("Authorization: Bearer secret-value"));
         QVERIFY(store.saveRequest(project, -1, request) < 0);
         const qint64 flowId = store.saveFlow(project, -1, QStringLiteral("Smoke"), QStringLiteral("{}"));
