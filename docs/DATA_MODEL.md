@@ -1,5 +1,9 @@
 # Modelo de datos y persistencia
 
+## Ubicación de SQLite
+
+Cuando no se entrega una ruta explícita, el escritorio mantiene `~/.local/share/reqflow-ai/reqflow.sqlite3`. En Android usa `QStandardPaths::AppDataLocation/reqflow.sqlite3`, dentro del almacenamiento privado de la aplicación; Android elimina esos datos al desinstalarla y no hay migración automática desde bases externas. Las pruebas de almacenamiento deben pasar rutas explícitas cuando necesiten directorios temporales.
+
 ## Base
 
 `ProjectStore` usa SQLite mediante el driver `QSQLITE`. La ruta por defecto documentada es `~/.local/share/reqflow-ai/reqflow.sqlite3`; las pruebas deberían usar archivos temporales. El constructor crea las tablas cuando no existen y activa `PRAGMA foreign_keys=ON` en la conexión.

@@ -2,6 +2,7 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QStandardPaths>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QSqlRecord>
@@ -95,8 +96,21 @@ ProjectStore::ProjectStore(const QString &filePath) {
     database_ = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName_);
     QString path = filePath;
     if (path.isEmpty()) {
-        const QString base = QDir::home().filePath(QStringLiteral(".local/share/reqflow-ai"));
-        QDir().mkpath(base);
+        QString base;
+#ifdef Q_OS_ANDROID
+        // Android has no user-writable home directory; use this app's private data area.
+        base = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+#else
+        base = QDir::home().filePath(QStringLiteral(".local/share/reqflow-ai"));
+#endif
+        if (base.isEmpty()) {
+            lastError_ = QStringLiteral("No se pudo obtener un directorio de datos escribible.");
+            return;
+        }
+        if (!QDir().mkpath(base)) {
+            lastError_ = QStringLiteral("No se pudo crear el directorio de datos: %1").arg(base);
+            return;
+        }
         path = QDir(base).filePath(QStringLiteral("reqflow.sqlite3"));
     } else {
         QDir().mkpath(QFileInfo(path).absolutePath());

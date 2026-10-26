@@ -5,11 +5,21 @@
 - C++20.
 - Rust estable y Cargo (requeridos para construir `backend/` como biblioteca estática integrada en `reqflow-ai`).
 - Dependencia Cargo `serde_json`; Cargo obtiene las dependencias desde crates.io durante el primer build.
-- yaml-cpp (requerida para importar especificaciones OpenAPI YAML).
+- yaml-cpp (requerida para importar especificaciones OpenAPI YAML). En Android, CMake construye yaml-cpp 0.8.0 dentro del cross-build para el ABI seleccionado; no se enlaza una biblioteca del host.
 - CMake 3.21+.
 - Qt 6.4+ con Core, Widgets, Network y Sql.
 - Driver `QSQLITE` disponible.
 - Qt Test para el target de pruebas.
+
+## Port Android (primera compilación, pendiente de CI)
+
+El proyecto incluye una ruta de empaquetado Android con Qt for Android y CMake, no una reescritura Kotlin. El workflow `.github/workflows/android-build.yml` apunta exclusivamente a `dev`, instala Qt 6.8.3 `android_arm64_v8a`, JDK 17, Android SDK API 35 y NDK 26.1.10909125, instala la target Rust `aarch64-linux-android`, y pide a CMake producir el target `apk`. La acción sube el APK como artefacto de 14 días solo después de crear y verificar el archivo ZIP, manifest y bibliotecas nativas `arm64-v8a`. Esto no está probado hasta que ese workflow pase.
+
+La app conserva módulos C++/Qt, SQLite, importación JSON/YAML y backend Rust completo. `yaml-cpp` 0.8.0 se construye con CMake para Android; Cargo usa target Rust Android y el linker Clang del NDK (API 28, compatible con el mínimo ABI), en vez de utilizar bibliotecas host. Los errores de cross-build son bloqueantes deliberadamente; no se reemplaza el backend por stubs ni se descartan funciones. Android solicita `INTERNET`; el tráfico HTTP cleartext queda deshabilitado por manifiesto.
+
+En Android, la base de datos predeterminada usa `QStandardPaths::AppDataLocation`, el directorio privado de la app; las ubicaciones de escritorio existentes se conservan. La interfaz usa un splitter vertical y distribuye controles de proyecto/entorno en filas para pantallas estrechas, con un tamaño mínimo reducido. Es una adaptación inicial de widgets de escritorio, no una UI Android nativa ni una validación visual. El importador de OpenAPI usa `QFileDialog`; la selección de documentos mediante Storage Access Framework no está implementada ni verificada. Los flujos visuales y diálogos complejos tampoco han recibido QA táctil.
+
+Para compilar localmente se requiere Qt for Android 6.8.3 para `arm64-v8a`, JDK 17, Android SDK Platform 35, NDK 26.1.10909125, CMake/Ninja, Cargo/Rust con `aarch64-linux-android` y acceso de red para FetchContent. Configure con el `qt-cmake` de `android_arm64_v8a` y Android SDK/NDK, luego `cmake --build <build-dir> --target apk`. CI valida estructura del APK/ABI, no instala ni ejecuta la app en emulador/dispositivo. API/NDK fijadas son las de este workflow; no significan API mínima Android 35 (Qt/NDK ABI mínima 28). Artefacto no firmado para pruebas directas; Google Play y firma de release quedan fuera.
 
 ## Backend Rust parcial
 
@@ -52,7 +62,9 @@ El target `reqflow-core-tests` cubre contratos seleccionados del cliente HTTP, p
 
 ## Evidencia y reportes
 
-En esta entrega (2026-10-25) se comprobó la disponibilidad real de herramientas: `git`, `cmake`, `g++`, `cargo`, `rustc`, `qmake6` y `pkg-config` no se encontraron en PATH. Se actualizó el workflow Linux para instalar Rust/yaml-cpp, configurar `BUILD_TESTING=ON`, compilar aplicación/tests y ejecutar Cargo/CTest; los resultados de GitHub Actions deben inspeccionarse tras el commit. Por tanto, configuración, build y tests Qt Test no se ejecutaron. La firma y el prototipo `QPasswordDigestor::deriveKeyPbkdf2(QCryptographicHash::Sha256, data, salt, iterations, dkLen)` se revisaron en la documentación oficial de Qt (Qt Network), pero esto no demuestra que una instalación local Qt 6.4 compile el código ni su comportamiento runtime. Las pruebas se escribieron, pero no están ejecutadas. Comandos de build/test no ejecutados porque falta CMake y la toolchain Qt/C++ no está disponible; no declarar build aprobado. Actualiza esta evidencia si se dispone de entorno nuevo.
+En la inspección Android (2026-10-25/26), el sandbox tampoco dispone de `git`, `cmake`, `java` ni `adb`; por eso no se pudo ejecutar localmente el cross-build, producir/inspeccionar un APK, instalar ni lanzar la app. El workflow Android añadido debe dar la evidencia de compilación y empaquetado. Hasta que termine exitosamente, el port es una ruta de build implementada pero no compilada ni verificada, y no hay enlace de APK disponible.
+
+En la validación Linux del 2026-10-25 se comprobó la disponibilidad real de herramientas: `git`, `cmake`, `g++`, `cargo`, `rustc`, `qmake6` y `pkg-config` no se encontraron en PATH. Se actualizó el workflow Linux para instalar Rust/yaml-cpp, configurar `BUILD_TESTING=ON`, compilar aplicación/tests y ejecutar Cargo/CTest; los resultados de GitHub Actions deben inspeccionarse tras el commit. Por tanto, configuración, build y tests Qt Test no se ejecutaron. La firma y el prototipo `QPasswordDigestor::deriveKeyPbkdf2(QCryptographicHash::Sha256, data, salt, iterations, dkLen)` se revisaron en la documentación oficial de Qt (Qt Network), pero esto no demuestra que una instalación local Qt 6.4 compile el código ni su comportamiento runtime. Las pruebas se escribieron, pero no están ejecutadas. Comandos de build/test no ejecutados porque falta CMake y la toolchain Qt/C++ no está disponible; no declarar build aprobado. Actualiza esta evidencia si se dispone de entorno nuevo.
 
 La revisión previa registró `cmake -S . -B build -DBUILD_TESTING=ON` con `cmake: command not found` (exit code 127). No se configuró ni compiló el proyecto en ese entorno.
 

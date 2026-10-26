@@ -83,8 +83,13 @@ bool requestHasSensitiveFields(const QUrl &url, const QString &headers, const QS
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), client_(this) {
     setWindowTitle(QStringLiteral("ReqFlow AI · Cliente HTTP"));
+#ifdef Q_OS_ANDROID
+    resize(420, 820);
+    setMinimumSize(320, 480);
+#else
     resize(1180, 760);
     setMinimumSize(900, 600);
+#endif
     buildUi();
     connect(&client_, &network::HttpClient::finished, this, &MainWindow::showResponse);
     refreshProjects();
@@ -112,37 +117,73 @@ void MainWindow::buildUi() {
     auto *projectRow = new QHBoxLayout;
     projectRow->addWidget(new QLabel(QStringLiteral("Proyecto")));
     projectBox_ = new QComboBox;
-    projectRow->addWidget(projectBox_);
+    projectRow->addWidget(projectBox_, 1);
     auto *newProject = new QPushButton(QStringLiteral("＋ Nuevo proyecto"));
     projectRow->addWidget(newProject);
     environmentBox_ = new QComboBox;
+#ifdef Q_OS_ANDROID
+    environmentBox_->setMinimumWidth(0);
+#else
     environmentBox_->setMinimumWidth(150);
+#endif
     environmentBox_->setToolTip(QStringLiteral("Entorno seleccionado; variables se reemplazan con {{nombre}}"));
-    projectRow->addWidget(environmentBox_);
     auto *editEnvironments = new QPushButton(QStringLiteral("Entornos…"));
+#ifdef Q_OS_ANDROID
+    outer->addLayout(projectRow);
+    auto *environmentRow = new QHBoxLayout;
+    environmentRow->addWidget(new QLabel(QStringLiteral("Entorno")));
+    environmentRow->addWidget(environmentBox_, 1);
+    environmentRow->addWidget(editEnvironments);
+    outer->addLayout(environmentRow);
+#else
+    projectRow->addWidget(environmentBox_);
     projectRow->addWidget(editEnvironments);
+#endif
     connect(editEnvironments, &QPushButton::clicked, this, &MainWindow::manageEnvironments);
+#ifdef Q_OS_ANDROID
+    auto *actionsRow = new QHBoxLayout;
+#endif
     auto *flowsButton = new QPushButton(QStringLiteral("Flujos visuales"));
+#ifdef Q_OS_ANDROID
+    actionsRow->addWidget(flowsButton);
+#else
     projectRow->addWidget(flowsButton);
+#endif
     connect(flowsButton, &QPushButton::clicked, this, &MainWindow::openFlowEditor);
     auto *suitesButton = new QPushButton(QStringLiteral("Suites API"));
+#ifdef Q_OS_ANDROID
+    actionsRow->addWidget(suitesButton);
+#else
     projectRow->addWidget(suitesButton);
+#endif
     connect(suitesButton, &QPushButton::clicked, this, &MainWindow::manageAssertionSuites);
     auto *openApiButton = new QPushButton(QStringLiteral("Importar OpenAPI"));
+#ifdef Q_OS_ANDROID
+    actionsRow->addWidget(openApiButton);
+    actionsRow->addStretch();
+    outer->addLayout(actionsRow);
+#else
     projectRow->addWidget(openApiButton);
-    connect(openApiButton, &QPushButton::clicked, this, &MainWindow::importOpenApi);
     projectRow->addStretch();
     projectRow->addWidget(new QLabel(QStringLiteral("Verifica el destino antes de enviar.")));
     outer->addLayout(projectRow);
+#endif
+    connect(openApiButton, &QPushButton::clicked, this, &MainWindow::importOpenApi);
     connect(projectBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, &MainWindow::refreshProject);
     connect(newProject, &QPushButton::clicked, this, &MainWindow::createProject);
 
+#ifdef Q_OS_ANDROID
+    auto *split = new QSplitter(Qt::Vertical);
+#else
     auto *split = new QSplitter(Qt::Horizontal);
+#endif
     auto *requestPanel = new QWidget;
     auto *requestLayout = new QVBoxLayout(requestPanel);
     auto *savedRow = new QHBoxLayout;
     savedRequestBox_ = new QComboBox;
+#ifndef Q_OS_ANDROID
     savedRequestBox_->setMinimumWidth(180);
+#endif
     savedRow->addWidget(savedRequestBox_, 1);
     auto *saveButton = new QPushButton(QStringLiteral("Guardar"));
     savedRow->addWidget(saveButton);
@@ -215,9 +256,16 @@ void MainWindow::buildUi() {
     responseSearch_ = new QLineEdit; responseSearch_->setPlaceholderText(QStringLiteral("Buscar en cuerpo o árbol JSON…"));
     auto *findButton = new QPushButton(QStringLiteral("Buscar siguiente"));
     searchRow->addWidget(responseSearch_, 1); searchRow->addWidget(findButton); bodyLayout->addLayout(searchRow);
+#ifdef Q_OS_ANDROID
+    auto *bodySplit = new QSplitter(Qt::Vertical, bodyPage);
+#else
     auto *bodySplit = new QSplitter(Qt::Horizontal, bodyPage);
+#endif
     jsonTree_ = new QTreeWidget(bodySplit); jsonTree_->setHeaderLabels({QStringLiteral("JSON · clave"), QStringLiteral("Valor")});
-    jsonTree_->setColumnWidth(0, 180); jsonTree_->setMinimumWidth(220);
+    jsonTree_->setColumnWidth(0, 180);
+#ifndef Q_OS_ANDROID
+    jsonTree_->setMinimumWidth(220);
+#endif
     responseBody_ = new QPlainTextEdit(bodySplit); responseBody_->setReadOnly(true);
     responseBody_->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
     bodySplit->addWidget(jsonTree_); bodySplit->addWidget(responseBody_); bodySplit->setStretchFactor(1, 2);
@@ -235,7 +283,12 @@ void MainWindow::buildUi() {
     responseTabs->addTab(bodyPage, QStringLiteral("Cuerpo / JSON"));
     responseTabs->addTab(responseHeaders_, QStringLiteral("Cabeceras / API Doctor"));
     responseLayout->addWidget(responseTabs, 1);
-    split->addWidget(requestPanel); split->addWidget(responsePanel); split->setStretchFactor(0, 3); split->setStretchFactor(1, 2);
+    split->addWidget(requestPanel); split->addWidget(responsePanel);
+#ifdef Q_OS_ANDROID
+    split->setStretchFactor(0, 3); split->setStretchFactor(1, 2);
+#else
+    split->setStretchFactor(0, 3); split->setStretchFactor(1, 2);
+#endif
     outer->addWidget(split, 1);
     statusLabel_ = new QLabel(QStringLiteral("Listo · Los datos se guardan localmente"));
     outer->addWidget(statusLabel_);

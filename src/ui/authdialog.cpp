@@ -14,7 +14,12 @@ AuthDialog::AuthDialog(data::ProjectStore &store, bool registration, QWidget *pa
     : QDialog(parent), store_(store), registration_(registration) {
     setWindowTitle(registration_ ? QStringLiteral("Configurar ReqFlow AI") : QStringLiteral("Iniciar sesión · ReqFlow AI"));
     setModal(true);
+#ifdef Q_OS_ANDROID
+    setMinimumWidth(0);
+    resize(360, 520);
+#else
     setMinimumWidth(440);
+#endif
     setWindowFlag(Qt::WindowContextHelpButtonHint, false);
     setStyleSheet(QStringLiteral(
         "QDialog{background:#171816;color:#f0eee9;}"
@@ -29,11 +34,19 @@ AuthDialog::AuthDialog(data::ProjectStore &store, bool registration, QWidget *pa
         "QLabel#error{color:#e7a18b;background:#382923;border:1px solid #704632;border-radius:6px;padding:8px;}"));
 
     auto *outer = new QVBoxLayout(this);
+#ifdef Q_OS_ANDROID
+    outer->setContentsMargins(12, 12, 12, 12);
+#else
     outer->setContentsMargins(26, 24, 26, 24);
+#endif
     auto *card = new QFrame(this);
     card->setObjectName(QStringLiteral("card"));
     auto *layout = new QVBoxLayout(card);
+#ifdef Q_OS_ANDROID
+    layout->setContentsMargins(16, 16, 16, 16);
+#else
     layout->setContentsMargins(26, 24, 26, 24);
+#endif
     layout->setSpacing(13);
 
     auto *eyebrow = new QLabel(QStringLiteral("REQFLOW  /  AI"), card);
