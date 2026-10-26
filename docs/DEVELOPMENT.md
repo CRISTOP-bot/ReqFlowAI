@@ -109,7 +109,17 @@ Con esto quedan compiladas y probadas ambas variantes (Debug y Release) en local
 
 Durante el desarrollo de esta entrega aparecieron y se corrigieron sobre la marcha (documentados arriba): la incompatibilidad del `moc` de Qt 6.12 con los raw strings del fichero de tests, la inexistencia de `QNetworkAccessManager::setReadBufferSize` en Qt 6 (el límite de 10 MiB se apoya en el abort diferido de `downloadProgress`), un `#include <QJsonObject>` faltante en `secrets.h` y el bindeo de `QString` nulo como `SQL NULL` en columnas `NOT NULL` de `requests`/`history` (normalizado con `textOrEmpty` en `ProjectStore`).
 
-Pendiente real: que los workflows de GitHub Actions terminen en verde tras el commit (incluido el cross-build Android, no ejecutable en local), y el QA manual de la interfaz (diálogos de redirección, ejecución de flujos, login interactivo).
+### CI en verde tras el push (2026-10-26)
+
+Tras el push de los commits de auditoría y web, los tres workflows de `dev` terminaron en verde:
+
+- [Linux multi-distro packages · run 40420594759](https://github.com/CRISTOP-bot/ReqFlowAI/actions/runs/40420594759): job `Build ReqFlow AI (Linux)` en 1m29s; en CI, `cargo test` → `6 passed; 0 failed` y `ctest` → `100% tests passed, 0 tests failed out of 1`; artefacto `reqflow-ai-linux-dev`.
+- [Android APK build · run 40420594740](https://github.com/CRISTOP-bot/ReqFlowAI/actions/runs/40420594740): job `Build Android APK (arm64-v8a)` en 3m13s; artefacto `reqflow-ai-android-arm64-v8a` (este es el único entorno donde se ejecuta el cross-build Android).
+- [Deploy ReqFlow AI website · run 40420597010](https://github.com/CRISTOP-bot/ReqFlowAI/actions/runs/40420597010): Pages publicado en 24s.
+
+Avisos no bloqueantes en ambos jobs: deprecación de Node.js 20 en las actions pineadas por SHA (`checkout`, `upload-artifact`, `setup-java`) y de `actions/setup-java@v4`.
+
+Pendiente real: el QA manual de la interfaz (diálogos de redirección, ejecución de flujos, login interactivo) y validar la instalación y ejecución en cada distribución (los paquetes de CI se compilan y testean, pero no se instalan en cada distro).
 
 ### Evidencias anteriores
 

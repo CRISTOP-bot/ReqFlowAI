@@ -1,0 +1,46 @@
+name: "Queja o incidencia"
+description: "Algo te ha incomodado o has tenido una mala experiencia con el proyecto, la web o la documentación."
+title: "[Queja]: "
+labels: ["feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por tu honestidad. Este canal es para quejas sobre la aplicación, la web, la documentación o el proceso del proyecto. Para bugs usa la plantilla **Reportar un bug**.
+  - type: textarea
+    id: motivo
+    attributes:
+      label: "Motivo de la queja"
+      description: "Qué te ha incomodado o qué experiencia has tenido."
+      placeholder: "Ej.: la página de descargas no aclara que los paquetes aún no están verificados en mi distribución."
+    validations:
+      required: true
+  - type: textarea
+    id: afectado
+    attributes:
+      label: "En qué te ha afectado"
+      description: "Cómo te ha impactado: tiempo perdido, confusión, expectativa incumplida, etc."
+    validations:
+      required: true
+  - type: textarea
+    id: esperarias
+    attributes:
+      label: "Qué esperarías"
+      description: "Qué cambio o respuesta haría que consideres resuelta la queja."
+    validations:
+      required: true
+  - type: input
+    id: entorno
+    attributes:
+      label: "Entorno (opcional)"
+      description: "Si aplica: sistema operativo, versión o rama de ReqFlow AI, o la página web implicada."
+      placeholder: "Ej.: web validacion.html, rama dev"
+  - type: checkboxes
+    id: comprobaciones
+    attributes:
+      label: "Comprobaciones"
+      options:
+        - label: "He buscado entre los issues abiertos por si alguien ya reportó algo parecido."
+          required: true
+        - label: "Este canal no es de emergencia ni de soporte urgente: sé que el proyecto se responde en tiempos de colaboración abierta."
+          required: true

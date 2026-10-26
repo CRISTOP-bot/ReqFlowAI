@@ -12,6 +12,10 @@ Esta documentación describe el estado observado en el código de ReqFlow AI. La
 - [Desarrollo y pruebas](DEVELOPMENT.md): requisitos, build, pruebas, integración Rust parcial, FFI, ruta de compilación Android y evidencia de validación.
 - [Reglas para agentes y colaboradores](../AGENT.md): obligación de documentar **todo** lo que se cambia y lista de cierre.
 
+## Canal de reportes
+
+Bugs, quejas y sugerencias se reciben en [GitHub Issues con plantillas](https://github.com/CRISTOP-bot/ReqFlowAI/issues/new/choose) (`.github/ISSUE_TEMPLATE/`: `bug`, `sugerencia`, `queja` y `config.yml` con los issues en blanco desactivados). Las vulnerabilidades siguen el proceso de [SECURITY.md](SECURITY.md), no este canal.
+
 ## Convención para mantener esta documentación
 
 Cada cambio de código o producto debe revisar README y los documentos pertinentes. Una función nueva requiere una descripción de comportamiento y límites; cambios de persistencia requieren actualizar el modelo de datos; cambios de seguridad requieren actualizar la evaluación de seguridad; los cambios de pruebas deben explicar cobertura y ejecución. Ningún documento debe convertir una intención o un test no ejecutado en una afirmación de funcionalidad verificada.

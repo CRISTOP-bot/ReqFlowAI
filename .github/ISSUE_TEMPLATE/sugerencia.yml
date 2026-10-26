@@ -1,0 +1,38 @@
+name: "Sugerencia o mejora"
+description: "Propón una funcionalidad o una mejora para ReqFlow AI."
+title: "[Sugerencia]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Las sugerencias bien descritas son más fáciles de evaluar. Recuerda que el proyecto es local-first y que algunas funciones están en beta o pendientes de validación.
+  - type: textarea
+    id: que-propones
+    attributes:
+      label: "Qué propones"
+      description: "Describe la funcionalidad o mejora con el mayor detalle posible."
+      placeholder: "Ej.: permitir exportar una suite de peticiones a un archivo JSON."
+    validations:
+      required: true
+  - type: textarea
+    id: por-que
+    attributes:
+      label: "Por qué sería útil"
+      description: "Qué problema resuelve o qué flujo mejora."
+    validations:
+      required: true
+  - type: textarea
+    id: alternativas
+    attributes:
+      label: "Alternativas que consideraste"
+      description: "Otras formas de resolverlo que se te ocurrieron, o herramientas que ya lo hacen así."
+  - type: checkboxes
+    id: comprobaciones
+    attributes:
+      label: "Comprobaciones"
+      options:
+        - label: "He revisado [Funciones](https://cristop-bot.github.io/ReqFlowAI/funciones.html) y el [índice de documentación](https://github.com/CRISTOP-bot/ReqFlowAI/blob/dev/docs/INDEX.md) para ver si ya existe."
+          required: true
+        - label: "Entiendo que las sugerencias se priorizan según el alcance actual del proyecto."
+          required: true
