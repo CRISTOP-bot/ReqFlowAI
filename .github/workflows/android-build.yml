@@ -43,6 +43,10 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          tools: ''
       - name: Install pinned Android SDK and NDK packages
         run: |
           export ANDROID_SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT}}"
