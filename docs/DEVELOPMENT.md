@@ -99,7 +99,13 @@ cmake --build build --parallel                # → [100%] Built target reqflow-
 ctest --test-dir build --output-on-failure    # → 1/1 Test #1: reqflow-core-tests ... Passed  17.21 sec
 ./build/reqflow-core-tests                    # → Totals: 24 passed, 0 failed, 0 skipped, 17638ms
 cargo test --manifest-path backend/Cargo.toml # → test result: ok. 6 passed; 0 failed
+
+cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+cmake --build build-release --parallel         # → [100%] Built target reqflow-ai
+ctest --test-dir build-release --output-on-failure  # → 1/1 Passed  17.02 sec
 ```
+
+Con esto quedan compiladas y probadas ambas variantes (Debug y Release) en local; `build-release/` está ignorado por git igual que `build/`.
 
 Durante el desarrollo de esta entrega aparecieron y se corrigieron sobre la marcha (documentados arriba): la incompatibilidad del `moc` de Qt 6.12 con los raw strings del fichero de tests, la inexistencia de `QNetworkAccessManager::setReadBufferSize` en Qt 6 (el límite de 10 MiB se apoya en el abort diferido de `downloadProgress`), un `#include <QJsonObject>` faltante en `secrets.h` y el bindeo de `QString` nulo como `SQL NULL` en columnas `NOT NULL` de `requests`/`history` (normalizado con `textOrEmpty` en `ProjectStore`).
 

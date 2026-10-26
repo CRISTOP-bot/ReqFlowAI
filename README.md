@@ -97,6 +97,10 @@ cmake --build build --parallel                # app + tests enlazan sin errores
 ctest --test-dir build --output-on-failure    # 1/1 Passed (reqflow-core-tests, 17.21 s)
 ./build/reqflow-core-tests                    # Totals: 24 passed, 0 failed (17 638 ms)
 cargo test --manifest-path backend/Cargo.toml # 6 passed; 0 failed
+
+cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+cmake --build build-release --parallel         # [100%] Built target reqflow-ai
+ctest --test-dir build-release --output-on-failure  # 1/1 Passed (17.02 s)
 ```
 
 Las 24 pruebas Qt Test incluyen las 8 nuevas de la auditoría de seguridad (esquemas de URL, filtro unificado de secretos, historial redactado por valor y acotado, YAML bomb, tope de 10 MiB, redirecciones mismo/cross-origin, cabeceras RFC 7230 y permisos 0600 de la base). También se reparó la incompatibilidad del `moc` de Qt 6.12 con los raw strings del propio fichero de tests, que rompía el build de CI (run 40263774958). Pendiente: verificar que los workflows en GitHub Actions terminan en verde tras el commit, y la prueba interactiva manual de la aplicación (login, envío real contra un servidor externo y diálogos de redirección) no está automatizada.
