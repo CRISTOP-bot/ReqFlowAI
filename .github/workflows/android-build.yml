@@ -26,7 +26,7 @@ permissions:
 
 env:
   ANDROID_NDK_VERSION: 26.1.10909125
-  ANDROID_API: 35
+  ANDROID_API: 34
 
 jobs:
   build-apk:
@@ -50,7 +50,7 @@ jobs:
           SDKMANAGER="$(find "$ANDROID_SDK_ROOT/cmdline-tools" -type f -name sdkmanager -print -quit)"
           test -x "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null
-          "$SDKMANAGER" "platform-tools" "platforms;android-${ANDROID_API}" "build-tools;35.0.0" "ndk;${ANDROID_NDK_VERSION}"
+          "$SDKMANAGER" "platform-tools" "platforms;android-${ANDROID_API}" "build-tools;34.0.0" "ndk;${ANDROID_NDK_VERSION}"
 
       - name: Install Qt 6.8.3 for Android arm64-v8a
         uses: jurplel/install-qt-action@v4
