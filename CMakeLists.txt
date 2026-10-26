@@ -60,7 +60,7 @@ add_custom_command(
 )
 add_custom_target(reqflow-rust-backend DEPENDS "${RUST_BACKEND_LIBRARY}")
 
-add_executable(reqflow-ai
+qt_add_executable(reqflow-ai
     src/main.cpp
     src/network/httpclient.cpp
     src/data/projectstore.cpp
