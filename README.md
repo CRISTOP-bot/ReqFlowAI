@@ -57,6 +57,10 @@ ReqFlow AI se distribuye bajo la licencia [Apache License 2.0](LICENSE). El cód
 
 Quedan fuera: nodos de espera/reintento/loop, exportación/versionado formal de flujos, extracción visual, árbol JSON/búsqueda/resaltado, diff de respuestas y especificaciones, OpenAPI security schemes, referencias `$ref` externas/transitivas, agente IA con conversaciones persistentes y proveedores, API Doctor completo, mock server/replay, plugin API, sincronización real, Keychain/Secret Service/Credential Manager y Security Lab completo con auditoría de alcance. La sustitución de entornos es literal, no una bóveda ni secret manager. La UI de suites usa JSON, no un constructor visual, y aún no expone el historial de ejecuciones. No se afirma que estas funciones estén implementadas.
 
+## Android (port experimental ARM64)
+
+Hay un APK Android arm64-v8a construido por CI para pruebas. La [última compilación y verificación](https://github.com/CRISTOP-bot/ReqFlowAI/actions/runs/40263775013) en `dev` terminó correctamente; descarga `reqflow-ai-android-arm64-v8a` desde la sección **Artifacts** del run. Es una compilación Qt/C++ que conserva el backend Rust y la importación YAML. El APK no está firmado para distribución, y no se ha instalado ni probado en un teléfono o emulador; la interfaz táctil y el selector de archivos Android siguen pendientes de QA. No es una release estable ni está publicado en Play Store.
+
 ## Requisitos
 
 - C++20.
