@@ -82,21 +82,34 @@ jobs:
 
       - name: Verify APK archive and native ABI
         run: |
-          APK="$(find build-android -type f -name '*.apk' -print -quit)"
-          test -n "$APK"
-          python3 - "$APK" <<'PY'
-          import sys, zipfile
-          apk = sys.argv[1]
-          with zipfile.ZipFile(apk) as z:
-              names = z.namelist()
-              assert 'AndroidManifest.xml' in names, 'APK has no Android manifest'
-              libs = [n for n in names if n.startswith('lib/') and n.endswith('.so')]
-              assert libs, 'APK has no native libraries'
-              assert all(n.startswith('lib/arm64-v8a/') for n in libs), f'unexpected native ABI entries: {libs}'
-              print(f'APK verified: {apk}; arm64-v8a native libraries: {len(libs)}')
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile
+
+          candidates = sorted(Path('.').glob('build-android/**/*.apk'))
+          valid = []
+          for apk in candidates:
+              try:
+                  with zipfile.ZipFile(apk) as archive:
+                      names = archive.namelist()
+                      libs = [name for name in names if name.startswith('lib/') and name.endswith('.so')]
+                      if 'AndroidManifest.xml' in names and libs and all(name.startswith('lib/arm64-v8a/') for name in libs):
+                          valid.append((apk, len(libs)))
+              except (OSError, zipfile.BadZipFile):
+                  continue
+
+          if not valid:
+              print('No valid arm64-v8a APK found. Candidate APK paths:')
+              for apk in candidates:
+                  print(f' - {apk} ({apk.stat().st_size} bytes)')
+              raise SystemExit('APK must contain AndroidManifest.xml and arm64-v8a native libraries.')
+
+          apk, library_count = valid[0]
+          Path('dist').mkdir(exist_ok=True)
+          destination = Path('dist/reqflow-ai-android-arm64-v8a.apk')
+          destination.write_bytes(apk.read_bytes())
+          print(f'APK verified: {apk}; arm64-v8a native libraries: {library_count}')
           PY
-          mkdir -p dist
-          cp "$APK" dist/reqflow-ai-android-arm64-v8a.apk
 
       - name: Upload Android APK artifact
         uses: actions/upload-artifact@v4
