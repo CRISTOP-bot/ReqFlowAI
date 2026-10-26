@@ -119,6 +119,8 @@ Tras el push de los commits de auditoría y web, los tres workflows de `dev` ter
 
 Avisos no bloqueantes en ambos jobs: deprecación de Node.js 20 en las actions pineadas por SHA (`checkout`, `upload-artifact`, `setup-java`) y de `actions/setup-java@v4`.
 
+En un segundo push de la misma entrega (solo docs y web, commit `1c272c8`) los runs [40421842617](https://github.com/CRISTOP-bot/ReqFlowAI/actions/runs/40421842617) (Linux) y [40421842562](https://github.com/CRISTOP-bot/ReqFlowAI/actions/runs/40421842562) (Pages) volvieron a pasar. Android no se dispara en pushes sin cambios de código porque `android-build.yml` filtra por `paths` (`CMakeLists.txt`, `android/`, `backend/`, `include/`, `src/` y el propio workflow); eso es comportamiento esperado, no un fallo.
+
 Pendiente real: el QA manual de la interfaz (diálogos de redirección, ejecución de flujos, login interactivo) y validar la instalación y ejecución en cada distribución (los paquetes de CI se compilan y testean, pero no se instalan en cada distro).
 
 ### Evidencias anteriores
