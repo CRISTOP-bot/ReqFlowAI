@@ -45,7 +45,8 @@ ImportResult parseOpenApiObject(const QJsonObject &root) {
     const QString version=root.value(QStringLiteral("openapi")).toString();
     if(!version.startsWith(QStringLiteral("3."))){result.error=QStringLiteral("Solo se admite OpenAPI 3.x JSON/YAML en esta versión.");return result;}
     if (!root.value(QStringLiteral("paths")).isObject()) { result.error = QStringLiteral("La propiedad paths debe ser un objeto."); return result; }
-    const QString base=root.value(QStringLiteral("servers")).toArray().at(0).toObject().value(QStringLiteral("url")).toString();
+    const QJsonArray servers = root.value(QStringLiteral("servers")).toArray();
+    const QString base = servers.isEmpty() ? QString{} : servers.first().toObject().value(QStringLiteral("url")).toString();
     const auto paths=root.value(QStringLiteral("paths")).toObject();
     if(paths.isEmpty()) result.warnings.append(QStringLiteral("La especificación no contiene paths."));
     const auto components = root.value(QStringLiteral("components")).toObject();
