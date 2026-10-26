@@ -14,11 +14,23 @@ El login es una **barrera local de la interfaz**, no una identidad web, SSO, aut
 
 ## Credenciales y variables
 
-Aún no hay bóveda de Keychain, Secret Service, Credential Manager ni otro almacén cifrado del sistema operativo. La UI, `ProjectStore` y los nodos HTTP de flujos aplican filtros heurísticos según nombres de campo/variable y algunos patrones comunes de tokens para impedir algunos casos sensibles. Los nodos de flujo validan método, expansión de URL/cuerpo/cabeceras, esquema HTTP/HTTPS y sintaxis básica de cabeceras antes de llamar a la capa de red. La detección no es completa, puede dar falsos positivos, no cifra valores ni SQLite y no equivale a gestión segura de credenciales. La validación sintáctica de cabeceras también cubre solo reglas básicas. No describas el filtro como una garantía ni recomiendes almacenar secretos en texto claro.
+Aún no hay bóveda de Keychain, Secret Service, Credential Manager ni otro almacén cifrado del sistema operativo. La UI, `ProjectStore`, `FlowEngine` y `FlowEditor` aplican ahora el **mismo** filtro heurístico, definido como un patrón único compartido en `include/reqflow/security/secrets.h` (`reqflow::security`): cubre nombres de campo/variable sensibles y también **valores** con forma de credencial (patrones tipo Bearer/Basic, sk-, gh[pousr]_, AKIA, JWT), así como claves de cuerpos form-urlencoded y etiquetas/atributos XML. Los nodos de flujo validan método, expansión de URL/cuerpo/cabeceras, esquema HTTP/HTTPS y sintaxis de cabeceras (RFC 7230) antes de llamar a la capa de red. La detección no es completa, puede dar falsos positivos y negativos, no cifra valores ni SQLite y no equivale a gestión segura de credenciales. **Sigue sin haber bóveda**: no describas el filtro como una garantía ni recomiendes almacenar secretos en texto claro.
 
 ## Historial
 
-El historial omite mensajes de error de red, sanea URL y cabeceras según nombres potencialmente sensibles, redacta campos identificables en JSON y sustituye cuerpos de texto no JSON por una notificación de omisión. La redacción no detecta todos los secretos, PII ni formas de codificación. Los resultados de comparación beta se limitan al contenido que haya sobrevivido a esta redacción.
+El historial omite mensajes de error de red, sanea URL y cabeceras según nombres potencialmente sensibles **y también por valor** (cabeceras, parámetros de URL y valores de campos JSON con forma de credencial se sustituyen por `[REDACTED]` aunque el nombre no parezca sensible), redacta campos identificables en JSON y sustituye cuerpos de texto no JSON por una notificación de omisión. Cada cuerpo de respuesta guardado se limita a 2 000 000 caracteres; por encima se guarda un marcador de omisión en lugar del cuerpo (los cuerpos no JSON ya se omitían). La redacción no detecta todos los secretos, PII ni formas de codificación. Los resultados de comparación beta se limitan al contenido que haya sobrevivido a esta redacción.
+
+## Redes, límites y redirecciones
+
+Cada respuesta HTTP se limita a 10 MiB; al superarlo se aborta la petición y se entrega un error con cuerpo vacío. Se permiten como máximo 5 redirecciones. Por defecto solo se siguen redirecciones al mismo origen (esquema + host + puerto) respecto de la URL original; cruzar a otro origen requiere confirmación explícita en un diálogo que muestra origen y destino. Ejecutar un flujo pide confirmación antes, listando método y URL de cada nodo de petición. Las cabeceras HTTP se validan según RFC 7230 (nombre solo tchar; valor sin CR, LF, NUL ni caracteres de control) en la UI y en el motor de flujos.
+
+## Ficheros locales y permisos
+
+En Unix la aplicación arranca con `umask 0077` para que los ficheros derivados de SQLite (`-journal`, `-wal`, `-shm`) salgan con permisos de solo propietario (`0600`). Tras abrir la base se aplica `chmod 0600` al fichero SQLite y `chmod 0700` al directorio por defecto (`~/.local/share/reqflow-ai`, o AppData en Android); las rutas personalizadas no se repermisionan salvo el fichero. Esto **no cifra** la base: el límite sigue siendo el control de acceso del sistema operativo.
+
+## Importación de especificaciones
+
+Al importar un fichero de especificación se aplica un tope de 20 MiB. La conversión de YAML a JSON usa un presupuesto de 100 000 nodos visitados; al superarlo se rechaza el archivo con un error en lugar de expandirlo (protege frente a "billion laughs"). Si la base del primer servidor (`servers[0].url`) tiene un esquema distinto de http/https se ignora con advertencia; las URLs con esquemas no http(s) se rechazan también al persistir peticiones y flujos (se permiten rutas relativas y plantillas `{{var}}` sin esquema).
 
 ## Comparador beta
 
@@ -31,3 +43,5 @@ No subas bases SQLite personales, respuestas reales con información sensible, t
 ## Al reportar vulnerabilidades
 
 Describe el impacto, el componente afectado y una reproducción segura con datos sintéticos. No publiques secretos ni datos de terceros. Distingue hallazgos reproducidos de hipótesis y cubre la corrección y regresión en la documentación.
+
+El detalle completo de la auditoría y sus arreglos está en [SECURITY_AUDIT.md](SECURITY_AUDIT.md).

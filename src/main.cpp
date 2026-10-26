@@ -5,7 +5,17 @@
 #include <QCoreApplication>
 #include <QMessageBox>
 
+#ifdef Q_OS_UNIX
+#include <sys/stat.h>
+#endif
+
 int main(int argc, char *argv[]) {
+#ifdef Q_OS_UNIX
+    // M2: con umask 0022 los ficheros nacen 0644 y legibles por el grupo. Se
+    // restringe a solo propietario desde el arranque para que la base SQLite y
+    // sus derivados (-journal/-wal/-shm) salgan 0600. Ver docs/SECURITY_AUDIT.md.
+    ::umask(S_IRWXG | S_IRWXO);
+#endif
     QApplication application(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("ReqFlow"));
     QCoreApplication::setApplicationName(QStringLiteral("ReqFlow AI"));

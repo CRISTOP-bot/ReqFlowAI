@@ -7,6 +7,10 @@
 
 namespace reqflow::data {
 
+// M1: máximo de caracteres de cuerpo de respuesta que se conservan en el
+// historial; por encima se guarda un marcador de omisión.
+inline constexpr qsizetype kMaxHistoryBodyChars = 2'000'000;
+
 class ProjectStore final {
 public:
     explicit ProjectStore(const QString &filePath = {});

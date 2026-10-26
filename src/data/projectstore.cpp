@@ -1,5 +1,7 @@
 #include "reqflow/data/projectstore.h"
 
+#include "reqflow/security/secrets.h"
+
 #include <QDir>
 #include <QFileInfo>
 #include <QStandardPaths>
@@ -13,7 +15,6 @@
 #include <QJsonParseError>
 #include <QJsonValue>
 #include <QJsonObject>
-#include <QRegularExpression>
 #include <QCryptographicHash>
 #include <QRandomGenerator>
 #include <QByteArray>
@@ -22,35 +23,55 @@
 #include <QUrl>
 #include <QUrlQuery>
 
+#ifdef Q_OS_UNIX
+#include <sys/stat.h>
+#endif
+
 namespace {
-const QRegularExpression sensitiveField(QStringLiteral("password|passwd|secret|token|authorization|cookie|api[_-]?key|client[_-]?secret"), QRegularExpression::CaseInsensitiveOption);
+namespace rs = reqflow::security;
 QString safeHistoryUrl(QString value) {
     QUrl url(value); if (!url.isValid()) return QStringLiteral("[invalid URL omitted]");
     url.setUserInfo(QString{}); QUrlQuery query(url); const auto items=query.queryItems(QUrl::FullyDecoded); query.clear();
-    for(const auto &item:items) query.addQueryItem(item.first,sensitiveField.match(item.first).hasMatch()?QStringLiteral("[REDACTED]"):item.second);
+    for(const auto &item:items) query.addQueryItem(item.first,
+        (rs::nameLooksSensitive(item.first) || rs::valueLooksLikeCredential(item.second)) ? QStringLiteral("[REDACTED]") : item.second);
     url.setQuery(query); return url.toString(QUrl::FullyEncoded);
 }
-bool jsonHasSensitiveKey(const QJsonValue &value) {
-    if (value.isObject()) { const auto object=value.toObject(); for(auto it=object.begin();it!=object.end();++it) if(sensitiveField.match(it.key()).hasMatch()||jsonHasSensitiveKey(it.value())) return true; }
-    if (value.isArray()) for(const auto &item:value.toArray()) if(jsonHasSensitiveKey(item)) return true;
-    return false;
-}
 QJsonValue safeJson(const QJsonValue &value) {
-    if(value.isObject()){QJsonObject out;const auto object=value.toObject();for(auto it=object.begin();it!=object.end();++it)out.insert(it.key(),sensitiveField.match(it.key()).hasMatch()?QJsonValue(QStringLiteral("[REDACTED]")):safeJson(it.value()));return out;}
+    if(value.isObject()){QJsonObject out;const auto object=value.toObject();for(auto it=object.begin();it!=object.end();++it)out.insert(it.key(),
+        rs::nameLooksSensitive(it.key())?QJsonValue(QStringLiteral("[REDACTED]")):safeJson(it.value()));return out;}
     if(value.isArray()){QJsonArray out;for(const auto &item:value.toArray())out.append(safeJson(item));return out;}
+    // Redacción por valor (M3): claves con forma de credencial aunque el nombre parezca inocuo.
+    if(value.isString()){const QString text=value.toString();
+        if(rs::valueLooksLikeCredential(text)||rs::textBodyLooksSensitive(text))return QJsonValue(QStringLiteral("[REDACTED]"));}
     return value;
 }
 QString safeHistoryBody(QString value) {
     if(value.isEmpty()) return {};
+    // M1: tope antes de parsear; evita conservar cuerpos enormes y parsearlos.
+    if (value.size() > reqflow::data::kMaxHistoryBodyChars)
+        return QStringLiteral("[cuerpo omitido del historial: supera el límite de %1 caracteres]").arg(reqflow::data::kMaxHistoryBodyChars);
     QJsonParseError error; const auto doc=QJsonDocument::fromJson(value.toUtf8(),&error);
     if(error.error!=QJsonParseError::NoError||doc.isNull()) return QStringLiteral("[non-JSON response omitted from history]");
     if(doc.isObject()) return QString::fromUtf8(QJsonDocument(safeJson(doc.object()).toObject()).toJson(QJsonDocument::Compact));
     return QString::fromUtf8(QJsonDocument(safeJson(doc.array()).toArray()).toJson(QJsonDocument::Compact));
 }
 QString safeHistoryHeaders(QString value) {
-    QStringList out; for(const auto &line:value.split(QLatin1Char('\n'),Qt::SkipEmptyParts)){const int colon=line.indexOf(QLatin1Char(':'));if(colon<0){out.append(QStringLiteral("[malformed header omitted]"));continue;}const QString name=line.left(colon).trimmed();out.append(name+QStringLiteral(": ")+(sensitiveField.match(name).hasMatch()?QStringLiteral("[REDACTED]"):line.mid(colon+1).trimmed()));} return out.join(QLatin1Char('\n'));
+    QStringList out; for(const auto &line:value.split(QLatin1Char('\n'),Qt::SkipEmptyParts)){const int colon=line.indexOf(QLatin1Char(':'));if(colon<0){out.append(QStringLiteral("[malformed header omitted]"));continue;}const QString name=line.left(colon).trimmed();const QString raw=line.mid(colon+1).trimmed();out.append(name+QStringLiteral(": ")+((rs::nameLooksSensitive(name)||rs::valueLooksLikeCredential(raw))?QStringLiteral("[REDACTED]"):raw));} return out.join(QLatin1Char('\n'));
 }
+// B4: solo http/https cuando la URL trae esquema. Sin esquema se admiten
+// plantillas `{{var}}/ruta` y rutas relativas (importación OpenAPI sin servers).
+bool hasDisallowedUrlScheme(const QUrl &url) {
+    const QString scheme = url.scheme().toLower();
+    return url.isValid() && !scheme.isEmpty() && scheme != QStringLiteral("http") && scheme != QStringLiteral("https");
 }
+// Qt SQL bindea un QString nulo como SQL NULL; las columnas de texto del
+// esquema son NOT NULL con DEFAULT '', así que se normaliza a cadena vacía.
+QVariant textOrEmpty(const QVariant &value) {
+    if (value.metaType().id() == QMetaType::QString && value.toString().isNull())
+        return QStringLiteral("");
+    return value;
+}
+} // namespace
 
 namespace reqflow::data {
 namespace {
@@ -111,6 +132,11 @@ ProjectStore::ProjectStore(const QString &filePath) {
             lastError_ = QStringLiteral("No se pudo crear el directorio de datos: %1").arg(base);
             return;
         }
+#ifdef Q_OS_UNIX
+        // M2: el directorio de datos por defecto solo lo lee el propietario.
+        // Las rutas personalizadas (tests, --ruta explícita) no se repermisionan.
+        ::chmod(QFileInfo(base).absoluteFilePath().toLocal8Bit().constData(), S_IRWXU);
+#endif
         path = QDir(base).filePath(QStringLiteral("reqflow.sqlite3"));
     } else {
         QDir().mkpath(QFileInfo(path).absolutePath());
@@ -120,6 +146,11 @@ ProjectStore::ProjectStore(const QString &filePath) {
         lastError_ = database_.lastError().text();
         return;
     }
+#ifdef Q_OS_UNIX
+    // M2: la base nace 0644 con umask 022; se recorta a solo propietario.
+    // `main.cpp` fija además umask 0077 para los ficheros derivados (-journal/-wal).
+    ::chmod(QFileInfo(path).absoluteFilePath().toLocal8Bit().constData(), S_IRUSR | S_IWUSR);
+#endif
     initialize();
 }
 
@@ -287,27 +318,34 @@ QVector<QVariantMap> ProjectStore::requests(qint64 projectId) const {
 }
 
 qint64 ProjectStore::saveRequest(qint64 projectId, qint64 requestId, const QVariantMap &request) {
-    const QUrl requestUrl(request.value(QStringLiteral("url")).toString());
+    const QString rawUrl = request.value(QStringLiteral("url")).toString().trimmed();
+    const QUrl requestUrl(rawUrl);
+    if (hasDisallowedUrlScheme(requestUrl)) { lastError_ = QStringLiteral("La URL debe usar http:// o https://; se rechazó un esquema no permitido."); return -1; }
     if (!requestUrl.userName().isEmpty() || !requestUrl.password().isEmpty()) { lastError_ = QStringLiteral("No se persisten URL con credenciales embebidas."); return -1; }
-    QUrlQuery urlQuery(requestUrl);
-    for (const auto &item : urlQuery.queryItems(QUrl::FullyDecoded)) if (sensitiveField.match(item.first).hasMatch()) { lastError_ = QStringLiteral("No se persisten parámetros que parecen secretos."); return -1; }
+    if (rs::urlLooksSensitive(rawUrl)) { lastError_ = QStringLiteral("No se persisten parámetros que parecen secretos."); return -1; }
     for (const QString &field : {QStringLiteral("headers"), QStringLiteral("params")}) {
         for (const QString &line : request.value(field).toString().split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
             const int separator = line.indexOf(field == QStringLiteral("headers") ? QLatin1Char(':') : QLatin1Char('='));
-            if (separator > 0 && sensitiveField.match(line.left(separator).trimmed()).hasMatch()) { lastError_ = QStringLiteral("No se persisten cabeceras o parámetros sensibles."); return -1; }
+            if (separator > 0) {
+                const QString name = line.left(separator).trimmed();
+                const QString value = line.mid(separator + 1).trimmed();
+                if (rs::nameLooksSensitive(name) || rs::valueLooksLikeCredential(value)) { lastError_ = QStringLiteral("No se persisten cabeceras o parámetros sensibles."); return -1; }
+            }
         }
     }
-    QJsonParseError bodyError; const auto bodyDoc = QJsonDocument::fromJson(request.value(QStringLiteral("body")).toString().toUtf8(), &bodyError);
-    if (bodyError.error == QJsonParseError::NoError && bodyDoc.isObject()) {
-        const auto body = bodyDoc.object(); for (auto it=body.begin(); it!=body.end(); ++it) if (sensitiveField.match(it.key()).hasMatch()) { lastError_ = QStringLiteral("No se persisten cuerpos JSON con campos sensibles."); return -1; }
+    const QString bodyText = request.value(QStringLiteral("body")).toString();
+    QJsonParseError bodyError; const auto bodyDoc = QJsonDocument::fromJson(bodyText.toUtf8(), &bodyError);
+    if (bodyError.error == QJsonParseError::NoError && !bodyDoc.isNull()) {
+        if (rs::jsonLooksSensitive(bodyDoc.isObject() ? QJsonValue(bodyDoc.object()) : QJsonValue(bodyDoc.array()))) { lastError_ = QStringLiteral("No se persisten cuerpos JSON con campos o valores sensibles."); return -1; }
+    } else if (rs::textBodyLooksSensitive(bodyText)) {
+        lastError_ = QStringLiteral("No se persisten cuerpos cuyo contenido parece secreto."); return -1;
     }
-    if (bodyError.error == QJsonParseError::NoError && !bodyDoc.isNull() && jsonHasSensitiveKey(bodyDoc.isObject() ? QJsonValue(bodyDoc.object()) : QJsonValue(bodyDoc.array()))) { lastError_ = QStringLiteral("No se persisten cuerpos JSON con campos sensibles."); return -1; }
     const QStringList fields = {QStringLiteral("name"), QStringLiteral("method"), QStringLiteral("url"),
                                 QStringLiteral("params"), QStringLiteral("headers"), QStringLiteral("body")};
     if (requestId > 0) {
         QSqlQuery query(database_);
         query.prepare(QStringLiteral("UPDATE requests SET name=?,method=?,url=?,params=?,headers=?,body=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND project_id=?"));
-        for (const QString &field : fields) query.addBindValue(request.value(field));
+        for (const QString &field : fields) query.addBindValue(textOrEmpty(request.value(field)));
         query.addBindValue(requestId); query.addBindValue(projectId);
         if (!query.exec()) { lastError_ = query.lastError().text(); return -1; }
         if (query.numRowsAffected() > 0) return requestId;
@@ -315,7 +353,7 @@ qint64 ProjectStore::saveRequest(qint64 projectId, qint64 requestId, const QVari
     QSqlQuery query(database_);
     query.prepare(QStringLiteral("INSERT INTO requests(project_id,name,method,url,params,headers,body) VALUES (?,?,?,?,?,?,?)"));
     query.addBindValue(projectId);
-    for (const QString &field : fields) query.addBindValue(request.value(field));
+    for (const QString &field : fields) query.addBindValue(textOrEmpty(request.value(field)));
     if (!query.exec()) { lastError_ = query.lastError().text(); return -1; }
     return query.lastInsertId().toLongLong();
 }
@@ -333,14 +371,14 @@ qint64 ProjectStore::addHistory(qint64 projectId, const QVariantMap &item) {
     safe.insert(QStringLiteral("url"), safeHistoryUrl(item.value(QStringLiteral("url")).toString()));
     safe.insert(QStringLiteral("response_headers"), safeHistoryHeaders(item.value(QStringLiteral("response_headers")).toString()));
     safe.insert(QStringLiteral("response_body"), safeHistoryBody(item.value(QStringLiteral("response_body")).toString()));
-    safe.insert(QStringLiteral("error"), item.value(QStringLiteral("error")).toString().isEmpty() ? QString{} : QStringLiteral("[network error omitted from history]"));
+    safe.insert(QStringLiteral("error"), item.value(QStringLiteral("error")).toString().isEmpty() ? QStringLiteral("") : QStringLiteral("[network error omitted from history]"));
     QSqlQuery query(database_);
     query.prepare(QStringLiteral("INSERT INTO history(project_id,request_name,method,url,status,elapsed_ms,response_size,response_headers,response_body,error) VALUES (?,?,?,?,?,?,?,?,?,?)"));
-    query.addBindValue(projectId); query.addBindValue(safe.value(QStringLiteral("request_name")));
-    query.addBindValue(safe.value(QStringLiteral("method"))); query.addBindValue(safe.value(QStringLiteral("url")));
+    query.addBindValue(projectId); query.addBindValue(textOrEmpty(safe.value(QStringLiteral("request_name"))));
+    query.addBindValue(textOrEmpty(safe.value(QStringLiteral("method")))); query.addBindValue(textOrEmpty(safe.value(QStringLiteral("url"))));
     query.addBindValue(safe.value(QStringLiteral("status"))); query.addBindValue(safe.value(QStringLiteral("elapsed_ms")));
-    query.addBindValue(safe.value(QStringLiteral("response_size"))); query.addBindValue(safe.value(QStringLiteral("response_headers")));
-    query.addBindValue(safe.value(QStringLiteral("response_body"))); query.addBindValue(safe.value(QStringLiteral("error")));
+    query.addBindValue(safe.value(QStringLiteral("response_size"))); query.addBindValue(textOrEmpty(safe.value(QStringLiteral("response_headers"))));
+    query.addBindValue(textOrEmpty(safe.value(QStringLiteral("response_body")))); query.addBindValue(textOrEmpty(safe.value(QStringLiteral("error"))));
     if (!query.exec()) { lastError_ = query.lastError().text(); return -1; }
     return query.lastInsertId().toLongLong();
 }
@@ -360,11 +398,17 @@ qint64 ProjectStore::saveFlow(qint64 projectId, qint64 flowId, const QString &na
     if(flowError.error!=QJsonParseError::NoError||!flowDoc.isObject()){ lastError_=QStringLiteral("La definición del flujo no es JSON válido."); return -1; }
     const auto nodes=flowDoc.object().value(QStringLiteral("nodes")).toArray();
     for(const auto &nodeValue:nodes){const auto node=nodeValue.toObject();const auto config=node.value(QStringLiteral("config")).toObject();
-        if(jsonHasSensitiveKey(config)){lastError_=QStringLiteral("No se persiste la definición del flujo con claves potencialmente sensibles. Esto no sustituye una bóveda segura.");return -1;}
+        if(rs::jsonLooksSensitive(config)){lastError_=QStringLiteral("No se persiste la definición del flujo con claves o valores potencialmente sensibles. Esto no sustituye una bóveda segura.");return -1;}
         const QString type=node.value(QStringLiteral("type")).toString();
-        if(type==QStringLiteral("request")){QUrl url(config.value(QStringLiteral("url")).toString());QUrlQuery query(url);if(!url.userName().isEmpty()||!url.password().isEmpty()){lastError_=QStringLiteral("El flujo contiene userinfo en la URL.");return -1;}for(const auto &item:query.queryItems(QUrl::FullyDecoded))if(sensitiveField.match(item.first).hasMatch()){lastError_=QStringLiteral("El flujo contiene un parámetro URL potencialmente sensible.");return -1;}}
+        if(type==QStringLiteral("request")){
+            const QString rawUrl=config.value(QStringLiteral("url")).toString().trimmed();
+            const QUrl url(rawUrl);
+            if(hasDisallowedUrlScheme(url)){lastError_=QStringLiteral("El flujo contiene una URL que no usa http:// o https://.");return -1;}
+            if(!url.userName().isEmpty()||!url.password().isEmpty()){lastError_=QStringLiteral("El flujo contiene userinfo en la URL.");return -1;}
+            if(rs::urlLooksSensitive(rawUrl)){lastError_=QStringLiteral("El flujo contiene un parámetro URL potencialmente sensible.");return -1;}
+        }
         const QString serialized=QString::fromUtf8(QJsonDocument(config).toJson(QJsonDocument::Compact));
-        if(serialized.contains(QStringLiteral("Authorization:"),Qt::CaseInsensitive)||serialized.contains(QStringLiteral("Cookie:"),Qt::CaseInsensitive)){lastError_=QStringLiteral("El flujo contiene una cabecera potencialmente sensible.");return -1;}
+        if(rs::nameLooksSensitive(serialized)){lastError_=QStringLiteral("El flujo contiene una cabecera o campo potencialmente sensible.");return -1;}
     }
     if (flowId > 0) {
         QSqlQuery update(database_);
@@ -402,7 +446,7 @@ qint64 ProjectStore::saveEnvironment(qint64 projectId, qint64 environmentId, con
     const QString normalized=name.trimmed();
     QJsonParseError error; const auto doc=QJsonDocument::fromJson(variablesJson.toUtf8(),&error);
     if(normalized.isEmpty()||error.error!=QJsonParseError::NoError||!doc.isObject()){lastError_=QStringLiteral("El entorno requiere nombre y un objeto JSON válido de variables.");return -1;}
-    if(jsonHasSensitiveKey(doc.object())){lastError_=QStringLiteral("No guardo valores con nombres que parecen secretos; no hay bóveda del sistema disponible.");return -1;}
+    if(rs::jsonLooksSensitive(doc.object())){lastError_=QStringLiteral("No guardo valores con nombres o valores que parecen secretos; no hay bóveda del sistema disponible.");return -1;}
     if(environmentId>0){QSqlQuery update(database_);update.prepare(QStringLiteral("UPDATE environments SET name=?,variables_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND project_id=?"));update.addBindValue(normalized);update.addBindValue(QString::fromUtf8(QJsonDocument(doc.object()).toJson(QJsonDocument::Compact)));update.addBindValue(environmentId);update.addBindValue(projectId);if(!update.exec()){lastError_=update.lastError().text();return -1;}if(update.numRowsAffected()>0)return environmentId;}
     QSqlQuery insert(database_);insert.prepare(QStringLiteral("INSERT INTO environments(project_id,name,variables_json) VALUES (?,?,?)"));insert.addBindValue(projectId);insert.addBindValue(normalized);insert.addBindValue(QString::fromUtf8(QJsonDocument(doc.object()).toJson(QJsonDocument::Compact)));if(!insert.exec()){lastError_=insert.lastError().text();return -1;}return insert.lastInsertId().toLongLong();
 }

@@ -47,9 +47,12 @@ struct FlowRun {
 
 class FlowEngine final {
 public:
+    // `redirectVerifier` decide cada salto de redirección; sin él solo se
+    // permiten redirecciones al mismo origen (B2 en docs/SECURITY_AUDIT.md).
     [[nodiscard]] FlowRun run(const FlowDefinition &flow, const QVariantMap &inputs = {},
                               const std::atomic_bool *cancel = nullptr,
-                              int maxSteps = 500) const;
+                              int maxSteps = 500,
+                              const network::RedirectVerifier &redirectVerifier = {}) const;
 };
 
 } // namespace reqflow::flow

@@ -2,6 +2,7 @@
 #include "reqflow/flow/floweditor.h"
 #include "reqflow/data/environment.h"
 #include "reqflow/openapi/openapiimporter.h"
+#include "reqflow/security/secrets.h"
 #include "reqflow/testing/jsondiff.h"
 #include "reqflow/testing/assertions.h"
 
@@ -48,36 +49,31 @@
 
 namespace reqflow::ui {
 namespace {
-const QRegularExpression sensitiveName(QStringLiteral("password|passwd|secret|token|authorization|cookie|api[_-]?key|client[_-]?secret"), QRegularExpression::CaseInsensitiveOption);
+namespace rs = reqflow::security;
 
-bool jsonHasSensitiveKey(const QJsonValue &value) {
-    if (value.isObject()) {
-        const auto object = value.toObject();
-        for (auto it = object.begin(); it != object.end(); ++it)
-            if (sensitiveName.match(it.key()).hasMatch() || jsonHasSensitiveKey(it.value())) return true;
-    } else if (value.isArray()) {
-        for (const auto &item : value.toArray()) if (jsonHasSensitiveKey(item)) return true;
-    }
-    return false;
-}
+// B3: tope para ficheros de especificación importados.
+constexpr qint64 kMaxImportBytes = 20 * 1024 * 1024;
 
 bool requestHasSensitiveFields(const QUrl &url, const QString &headers, const QString &params, const QString &body) {
     if (!url.userName().isEmpty() || !url.password().isEmpty()) return true;
-    QUrlQuery query(url);
-    for (const auto &item : query.queryItems(QUrl::FullyDecoded))
-        if (sensitiveName.match(item.first).hasMatch()) return true;
-    auto hasSensitiveLine = [](const QString &text, QChar delimiter) {
+    if (rs::urlLooksSensitive(url.toString())) return true;
+    auto lineLooksSensitive = [](const QString &text, QChar delimiter) {
         for (const auto &line : text.split('\n', Qt::SkipEmptyParts)) {
             const int pos = line.indexOf(delimiter);
-            if (pos > 0 && sensitiveName.match(line.left(pos).trimmed()).hasMatch()) return true;
+            if (pos > 0) {
+                const QString name = line.left(pos).trimmed();
+                const QString value = line.mid(pos + 1).trimmed();
+                if (rs::nameLooksSensitive(name) || rs::valueLooksLikeCredential(value)) return true;
+            }
         }
         return false;
     };
-    if (hasSensitiveLine(headers, QLatin1Char(':')) || hasSensitiveLine(params, QLatin1Char('='))) return true;
+    if (lineLooksSensitive(headers, QLatin1Char(':')) || lineLooksSensitive(params, QLatin1Char('='))) return true;
     QJsonParseError error;
     const auto document = QJsonDocument::fromJson(body.toUtf8(), &error);
-    return error.error == QJsonParseError::NoError &&
-           jsonHasSensitiveKey(document.isObject() ? QJsonValue(document.object()) : QJsonValue(document.array()));
+    if (error.error == QJsonParseError::NoError && !document.isNull())
+        return rs::jsonLooksSensitive(document.isObject() ? QJsonValue(document.object()) : QJsonValue(document.array()));
+    return rs::textBodyLooksSensitive(body);
 }
 }
 
@@ -479,6 +475,11 @@ void MainWindow::importOpenApi() {
     if (fileName.isEmpty()) return;
     QFile file(fileName);
     if (!file.open(QIODevice::ReadOnly)) { QMessageBox::warning(this, QStringLiteral("No se pudo leer"), file.errorString()); return; }
+    if (file.size() > kMaxImportBytes) {
+        QMessageBox::warning(this, QStringLiteral("Especificación demasiado grande"),
+                             QStringLiteral("El fichero supera el límite de 20 MiB; divídelo o exporta solo las rutas necesarias."));
+        return;
+    }
     const QByteArray specification = file.readAll();
     const QString suffix = QFileInfo(fileName).suffix().toLower();
     const auto imported = (suffix == QStringLiteral("yaml") || suffix == QStringLiteral("yml"))
@@ -516,31 +517,38 @@ QString MainWindow::redactUrl(const QUrl &url) const {
     QUrl safe(url);
     safe.setUserInfo(QString{});
     QUrlQuery query(safe);
-    static const QRegularExpression sensitive(QStringLiteral("password|passwd|secret|token|authorization|cookie|api[_-]?key|client[_-]?secret"), QRegularExpression::CaseInsensitiveOption);
     const auto items = query.queryItems(QUrl::FullyDecoded);
     query.clear();
-    for (const auto &item : items) query.addQueryItem(item.first, sensitive.match(item.first).hasMatch() ? QStringLiteral("[REDACTED]") : item.second);
+    for (const auto &item : items)
+        query.addQueryItem(item.first,
+                           (rs::nameLooksSensitive(item.first) || rs::valueLooksLikeCredential(item.second))
+                               ? QStringLiteral("[REDACTED]") : item.second);
     safe.setQuery(query);
     return safe.toString(QUrl::FullyEncoded);
 }
 
 QString MainWindow::redactResponseBody(const QByteArray &body) const {
+    // M1: tope de tamaño antes de parsear; el cuerpo enorme se omite entero.
+    if (body.size() > data::kMaxHistoryBodyChars)
+        return QStringLiteral("[cuerpo omitido del historial: supera el límite de %1 caracteres]").arg(data::kMaxHistoryBodyChars);
     QJsonParseError error;
     const auto document = QJsonDocument::fromJson(body, &error);
     if (error.error != QJsonParseError::NoError)
         return body.isEmpty() ? QString{} : QStringLiteral("[Respuesta de texto omitida del historial para evitar retener posibles secretos]");
-    static const QRegularExpression sensitive(QStringLiteral("password|passwd|secret|token|authorization|cookie|api[_-]?key|client[_-]?secret"), QRegularExpression::CaseInsensitiveOption);
     std::function<QJsonValue(const QJsonValue &)> clean = [&](const QJsonValue &value) -> QJsonValue {
         if (value.isObject()) {
             QJsonObject output;
             const auto object = value.toObject();
             for (auto it = object.begin(); it != object.end(); ++it)
-                output.insert(it.key(), sensitive.match(it.key()).hasMatch() ? QJsonValue(QStringLiteral("[REDACTED]")) : clean(it.value()));
+                output.insert(it.key(), rs::nameLooksSensitive(it.key()) ? QJsonValue(QStringLiteral("[REDACTED]")) : clean(it.value()));
             return output;
         }
         if (value.isArray()) {
             QJsonArray output; for (const auto &item : value.toArray()) output.append(clean(item)); return output;
         }
+        // M3: redacción también por valor (claves que no parecen sensibles).
+        if (value.isString() && rs::valueLooksLikeCredential(value.toString()))
+            return QJsonValue(QStringLiteral("[REDACTED]"));
         return value;
     };
     const QJsonValue root = document.isObject() ? QJsonValue(document.object()) : QJsonValue(document.array());
@@ -647,7 +655,16 @@ void MainWindow::sendRequest() {
     for (const QString &line : expandedHeaders.split('\n', Qt::SkipEmptyParts)) {
         const int colon = line.indexOf(':');
         if (colon <= 0) { QMessageBox::warning(this, QStringLiteral("Cabecera inválida"), QStringLiteral("Usa Nombre: valor en cada línea.")); return; }
-        request.headers.insert(line.left(colon).trimmed().toLatin1(), line.mid(colon+1).trimmed().toLatin1());
+        // B1: Qt 6.12 descarta en silencio las cabeceras inválidas y Qt 6.4 no las
+        // validaba; aquí se rechazan de forma explícita con un error claro.
+        const QString headerName = line.left(colon).trimmed();
+        const QString headerValue = line.mid(colon + 1).trimmed();
+        if (!network::isValidHeaderName(headerName) || !network::isValidHeaderValue(headerValue)) {
+            QMessageBox::warning(this, QStringLiteral("Cabecera inválida"),
+                                 QStringLiteral("La cabecera «%1» no es válida (RFC 7230): revisa el nombre y evita saltos de línea o caracteres de control en el valor.").arg(headerName));
+            return;
+        }
+        request.headers.insert(headerName.toLatin1(), headerValue.toLatin1());
     }
     request.body = expandedBody.toUtf8();
     if (!request.body.isEmpty() && !request.headers.contains("Content-Type")) request.headers.insert("Content-Type", "application/json");
@@ -656,7 +673,13 @@ void MainWindow::sendRequest() {
         pendingAssertions_ = assertionsToRun;
     }
     sendButton_->setEnabled(false); statusLabel_->setText(QStringLiteral("Enviando…")); responseMeta_->setText(QStringLiteral("Esperando respuesta…"));
-    client_.send(request);
+    // B2: mismo origen sin preguntar; cruzar origen requiere confirmación explícita.
+    client_.send(request, [this](const QUrl &from, const QUrl &to) {
+        if (network::isSameOrigin(from, to)) return true;
+        return QMessageBox::question(this, QStringLiteral("Redirección cruzada"),
+                                     QStringLiteral("El servidor pide redirigir de %1 a %2.\n\n¿Permitir este salto?")
+                                         .arg(from.toString(), to.toString())) == QMessageBox::Yes;
+    });
 }
 
 void MainWindow::showResponse(const network::HttpResponse &response) {
@@ -671,10 +694,12 @@ void MainWindow::showResponse(const network::HttpResponse &response) {
     responseBody_->setPlainText(text);
     populateJsonTree(text);
     QStringList headerLines;
-    static const QRegularExpression sensitiveHeader(QStringLiteral("password|passwd|secret|token|authorization|cookie|api[_-]?key|client[_-]?secret"), QRegularExpression::CaseInsensitiveOption);
     for (const auto &header : response.headers) {
         const QString name = QString::fromLatin1(header.first);
-        const QString value = sensitiveHeader.match(name).hasMatch() ? QStringLiteral("[REDACTED]") : QString::fromLatin1(header.second);
+        const QString rawValue = QString::fromLatin1(header.second);
+        // M3: se redacta por nombre O por valor con forma de credencial.
+        const QString value = (rs::nameLooksSensitive(name) || rs::valueLooksLikeCredential(rawValue))
+                                  ? QStringLiteral("[REDACTED]") : rawValue;
         headerLines.append(name + QStringLiteral(": ") + value);
     }
     const QString contentType = QString::fromLatin1(response.header("Content-Type")).toLower();
@@ -708,8 +733,10 @@ void MainWindow::showResponse(const network::HttpResponse &response) {
         QStringList safeHeaders;
         for (const auto &header : response.headers) {
             const QString headerName = QString::fromLatin1(header.first);
-            const bool isSensitive = QRegularExpression(QStringLiteral("password|passwd|secret|token|authorization|cookie|api[_-]?key|client[_-]?secret"), QRegularExpression::CaseInsensitiveOption).match(headerName).hasMatch();
-            safeHeaders.append(headerName + QStringLiteral(": ") + (isSensitive ? QStringLiteral("[REDACTED]") : QString::fromLatin1(header.second)));
+            const QString rawHeaderValue = QString::fromLatin1(header.second);
+            // M3: el historial también redacta por valor.
+            const bool isSensitive = rs::nameLooksSensitive(headerName) || rs::valueLooksLikeCredential(rawHeaderValue);
+            safeHeaders.append(headerName + QStringLiteral(": ") + (isSensitive ? QStringLiteral("[REDACTED]") : rawHeaderValue));
         }
         item.insert(QStringLiteral("response_size"), response.sizeBytes()); item.insert(QStringLiteral("response_headers"), safeHeaders.join('\n'));
         item.insert(QStringLiteral("response_body"), redactResponseBody(response.body));

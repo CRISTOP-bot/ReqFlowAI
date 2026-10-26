@@ -1,5 +1,7 @@
 #include "reqflow/flow/flowengine.h"
 
+#include "reqflow/security/secrets.h"
+
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QMap>
@@ -7,6 +9,7 @@
 #include <algorithm>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonParseError>
 #include <QJsonValue>
 #include <QRegularExpression>
 #include <QSet>
@@ -15,6 +18,7 @@
 
 namespace reqflow::flow {
 namespace {
+namespace rs = reqflow::security;
 const QSet<QString> kNodeTypes = {QStringLiteral("start"), QStringLiteral("request"),
     QStringLiteral("extract"), QStringLiteral("transform"), QStringLiteral("condition"), QStringLiteral("result")};
 
@@ -67,12 +71,11 @@ QByteArray substitute(const QString &text, const QVariantMap &vars, QString *err
 }
 
 QJsonValue redactedJson(const QJsonValue &value) {
-    static const QRegularExpression sensitive(QStringLiteral("password|passwd|secret|token|authorization|auth|cookie|api[_-]?key|client[_-]?secret|credential|private[_-]?key"), QRegularExpression::CaseInsensitiveOption);
     if (value.isObject()) {
         QJsonObject output;
         const auto object = value.toObject();
         for (auto it = object.begin(); it != object.end(); ++it)
-            output.insert(it.key(), sensitive.match(it.key()).hasMatch() ? QJsonValue(QStringLiteral("[REDACTED]")) : redactedJson(it.value()));
+            output.insert(it.key(), rs::nameLooksSensitive(it.key()) ? QJsonValue(QStringLiteral("[REDACTED]")) : redactedJson(it.value()));
         return output;
     }
     if (value.isArray()) {
@@ -80,34 +83,16 @@ QJsonValue redactedJson(const QJsonValue &value) {
         for (const auto &item : value.toArray()) output.append(redactedJson(item));
         return output;
     }
+    if (value.isString()) {
+        const QString text = value.toString();
+        if (rs::valueLooksLikeCredential(text) || rs::textBodyLooksSensitive(text))
+            return QJsonValue(QStringLiteral("[REDACTED]"));
+    }
     return value;
 }
 
-QString redactRequestConfig(const QJsonObject &config) {
-    static const QRegularExpression sensitive(QStringLiteral("password|passwd|secret|token|authorization|auth|cookie|api[_-]?key|client[_-]?secret|credential|private[_-]?key"), QRegularExpression::CaseInsensitiveOption);
-    QJsonObject safe = config;
-    for (auto it = safe.begin(); it != safe.end(); ++it) {
-        if (sensitive.match(it.key()).hasMatch()) it.value() = QStringLiteral("[REDACTED]");
-        else if (it.key() == QStringLiteral("url")) {
-            QUrl url(it.value().toString());
-            if (url.isValid()) {
-                url.setUserInfo(QString{});
-                QUrlQuery query(url);
-                const auto items = query.queryItems(QUrl::FullyDecoded);
-                query.clear();
-                for (const auto &item : items) query.addQueryItem(item.first, sensitive.match(item.first).hasMatch() ? QStringLiteral("[REDACTED]") : item.second);
-                url.setQuery(query);
-                it.value() = url.toString(QUrl::FullyEncoded);
-            }
-        }
-    }
-    return QString::fromUtf8(QJsonDocument(safe).toJson(QJsonDocument::Compact));
-}
-
 bool containsSecretValue(const QJsonValue &value, const QString &fieldName = {}) {
-    static const QRegularExpression sensitiveName(QStringLiteral("password|passwd|secret|token|authorization|auth|cookie|api[_-]?key|client[_-]?secret|credential|private[_-]?key"), QRegularExpression::CaseInsensitiveOption);
-    static const QRegularExpression credentialValue(QStringLiteral("\\b(?:Bearer|Basic)\\s+[A-Za-z0-9._~+/=-]{8,}|\\bsk-[A-Za-z0-9_-]{12,}|\\b(?:gh[pousr]_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{16})\\b"), QRegularExpression::CaseInsensitiveOption);
-    if (!fieldName.isEmpty() && sensitiveName.match(fieldName).hasMatch()) return true;
+    if (!fieldName.isEmpty() && rs::nameLooksSensitive(fieldName)) return true;
     if (value.isObject()) {
         const auto object = value.toObject();
         for (auto it = object.begin(); it != object.end(); ++it)
@@ -117,19 +102,22 @@ bool containsSecretValue(const QJsonValue &value, const QString &fieldName = {})
             if (containsSecretValue(item)) return true;
     } else if (value.isString()) {
         const QString text = value.toString();
-        if (credentialValue.match(text).hasMatch()) return true;
+        if (rs::valueLooksLikeCredential(text) || rs::textBodyLooksSensitive(text)) return true;
         if (fieldName.compare(QStringLiteral("url"), Qt::CaseInsensitive) == 0) {
             const QUrl url(text);
             if (!url.userInfo().isEmpty()) return true;
-            const QUrlQuery query(url);
-            for (const auto &item : query.queryItems(QUrl::FullyDecoded))
-                if (sensitiveName.match(item.first).hasMatch()) return true;
+            if (rs::urlLooksSensitive(text)) return true;
         }
-        if (fieldName.compare(QStringLiteral("headers"), Qt::CaseInsensitive) == 0) {
-            for (const QString &line : text.split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
-                const int colon = line.indexOf(QLatin1Char(':'));
-                if (colon > 0 && sensitiveName.match(line.left(colon)).hasMatch()) return true;
-            }
+        if (fieldName.compare(QStringLiteral("headers"), Qt::CaseInsensitive) == 0 &&
+            rs::headerLinesLookSensitive(text))
+            return true;
+        const QString trimmed = text.trimmed();
+        if (trimmed.startsWith(QLatin1Char('{')) || trimmed.startsWith(QLatin1Char('['))) {
+            QJsonParseError jsonError;
+            const QJsonDocument document = QJsonDocument::fromJson(trimmed.toUtf8(), &jsonError);
+            if (jsonError.error == QJsonParseError::NoError && !document.isNull() &&
+                rs::jsonLooksSensitive(document.isArray() ? QJsonValue(document.array()) : QJsonValue(document.object())))
+                return true;
         }
     }
     return false;
@@ -213,11 +201,11 @@ QStringList validate(const FlowDefinition &flow) {
 }
 
 FlowRun FlowEngine::run(const FlowDefinition &flow, const QVariantMap &inputs,
-                        const std::atomic_bool *cancel, int maxSteps) const {
+                        const std::atomic_bool *cancel, int maxSteps,
+                        const network::RedirectVerifier &redirectVerifier) const {
     FlowRun run; run.variables = inputs;
-    static const QRegularExpression sensitiveInput(QStringLiteral("password|passwd|secret|token|authorization|auth|cookie|api[_-]?key|client[_-]?secret|credential|private[_-]?key"), QRegularExpression::CaseInsensitiveOption);
     for (auto it = run.variables.begin(); it != run.variables.end(); ++it)
-        if (sensitiveInput.match(it.key()).hasMatch()) it.value() = QStringLiteral("[REDACTED]");
+        if (rs::nameLooksSensitive(it.key())) it.value() = QStringLiteral("[REDACTED]");
     const QStringList errors = validate(flow);
     if (!errors.isEmpty()) { run.status = QStringLiteral("invalid"); run.error = errors.join(QStringLiteral("; ")); return run; }
     QMap<QString, FlowNode> nodes;
@@ -254,12 +242,11 @@ FlowRun FlowEngine::run(const FlowDefinition &flow, const QVariantMap &inputs,
             if (error.isEmpty()) {
                 const QString headerText = QString::fromUtf8(substitute(config.value(QStringLiteral("headers")).toString(), run.variables, &error));
                 if (error.isEmpty()) {
-                    static const QRegularExpression headerName(QStringLiteral("^[!#$%&'*+.^_`|~0-9A-Za-z-]+$"));
                     for (const QString &line : headerText.split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
                         const int colon = line.indexOf(QLatin1Char(':'));
                         const QString name = colon > 0 ? line.left(colon).trimmed() : QString{};
                         const QString value = colon > 0 ? line.mid(colon + 1).trimmed() : QString{};
-                        if (colon <= 0 || !headerName.match(name).hasMatch() || value.contains(QLatin1Char('\r')) || value.contains(QChar::Null)) {
+                        if (colon <= 0 || !network::isValidHeaderName(name) || !network::isValidHeaderValue(value)) {
                             error = QStringLiteral("Cabecera HTTP no válida en el nodo de petición.");
                             break;
                         }
@@ -271,7 +258,7 @@ FlowRun FlowEngine::run(const FlowDefinition &flow, const QVariantMap &inputs,
             if (error.isEmpty()) {
                 QEventLoop loop;
                 const auto connection = QObject::connect(&client, &network::HttpClient::finished, &loop, [&](const network::HttpResponse &value) { response = value; loop.quit(); });
-                client.send(request);
+                client.send(request, redirectVerifier);
                 loop.exec();
                 QObject::disconnect(connection);
             }

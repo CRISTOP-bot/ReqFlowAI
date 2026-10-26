@@ -8,18 +8,26 @@
 
 namespace reqflow::openapi {
 namespace {
-QJsonValue yamlValue(const YAML::Node &node) {
+// B3: un documento pequeño con aliases anidados («billion laughs») puede pedir
+// miles de millones de visitas al convertir el árbol compartido a JSON. El
+// presupuesto corta la expansión y devuelve un error claro.
+constexpr int kMaxYamlNodes = 100'000;
+struct NodeBudgetExceeded {};
+
+QJsonValue yamlValue(const YAML::Node &node, int &budget) {
+    if (budget <= 0) throw NodeBudgetExceeded{};
+    --budget;
     if (!node || node.IsNull()) return QJsonValue(QJsonValue::Null);
     if (node.IsSequence()) {
         QJsonArray array;
-        for (const auto &value : node) array.append(yamlValue(value));
+        for (const auto &value : node) array.append(yamlValue(value, budget));
         return array;
     }
     if (node.IsMap()) {
         QJsonObject object;
         for (const auto &entry : node) {
             if (!entry.first.IsScalar()) continue;
-            object.insert(QString::fromStdString(entry.first.Scalar()), yamlValue(entry.second));
+            object.insert(QString::fromStdString(entry.first.Scalar()), yamlValue(entry.second, budget));
         }
         return object;
     }
@@ -41,13 +49,19 @@ QJsonValue yamlValue(const YAML::Node &node) {
 QJsonObject parseYamlObject(const QByteArray &bytes, QString *error) {
     try {
         const YAML::Node root = YAML::Load(bytes.constData());
-        const QJsonValue value = yamlValue(root);
+        int budget = kMaxYamlNodes;
+        const QJsonValue value = yamlValue(root, budget);
         if (!value.isObject()) {
             if (error) *error = QStringLiteral("La especificación YAML debe tener un objeto en la raíz.");
             return {};
         }
         if (error) error->clear();
         return value.toObject();
+    } catch (const NodeBudgetExceeded &) {
+        if (error)
+            *error = QStringLiteral("El documento YAML supera el presupuesto de %1 nodos expandibles; posible bomba de aliases.")
+                         .arg(kMaxYamlNodes);
+        return {};
     } catch (const YAML::Exception &exception) {
         if (error) *error = QString::fromUtf8(exception.what());
         return {};

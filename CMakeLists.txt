@@ -18,6 +18,10 @@ if(ANDROID)
     set(YAML_CPP_INSTALL OFF CACHE BOOL "" FORCE)
     FetchContent_Declare(yaml-cpp
         URL https://github.com/jbeder/yaml-cpp/archive/refs/tags/0.8.0.tar.gz
+        # B5: el tarball se verifica por hash para no depender de un contenido
+        # mutable servido bajo la misma URL. Hash calculado con sha256sum del
+        # tarball descargado (1 017 151 bytes, gzip verificado con gzip -t).
+        URL_HASH SHA256=fbe74bbdcee21d656715688706da3c8becfd946d92cd44705cc6098bb23b3a16
         DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
     FetchContent_MakeAvailable(yaml-cpp)
 else()
@@ -83,6 +87,7 @@ qt_add_executable(reqflow-ai
     include/reqflow/flow/flowgraphics.h
     include/reqflow/openapi/openapiimporter.h
     include/reqflow/openapi/yaml.h
+    include/reqflow/security/secrets.h
     include/reqflow/testing/assertions.h
     include/reqflow/testing/jsondiff.h
     include/reqflow/ui/mainwindow.h
@@ -113,7 +118,7 @@ if(BUILD_TESTING AND NOT ANDROID)
             include/reqflow/testing/jsondiff.h include/reqflow/flow/flowengine.h
             include/reqflow/openapi/openapiimporter.h include/reqflow/openapi/yaml.h
             include/reqflow/network/httpclient.h include/reqflow/data/projectstore.h
-            include/reqflow/data/environment.h)
+            include/reqflow/data/environment.h include/reqflow/security/secrets.h)
         target_include_directories(reqflow-core-tests PRIVATE include)
         add_dependencies(reqflow-core-tests reqflow-rust-backend)
         target_link_libraries(reqflow-core-tests PRIVATE Qt6::Core Qt6::Network Qt6::Sql Qt6::Test yaml-cpp::yaml-cpp "${RUST_BACKEND_LIBRARY}")

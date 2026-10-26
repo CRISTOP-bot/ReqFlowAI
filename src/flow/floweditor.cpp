@@ -1,5 +1,6 @@
 #include "reqflow/flow/floweditor.h"
 #include "reqflow/flow/flowgraphics.h"
+#include "reqflow/security/secrets.h"
 
 #include <QHBoxLayout>
 #include <QInputDialog>
@@ -22,10 +23,10 @@ namespace reqflow::flow {
 namespace {
 QString nodeId() { return QUuid::createUuid().toString(QUuid::WithoutBraces).left(8); }
 QJsonObject storedSafe(const QJsonObject &input) {
-    static const QRegularExpression sensitive(QStringLiteral("password|passwd|secret|token|authorization|cookie|api[_-]?key|client[_-]?secret"), QRegularExpression::CaseInsensitiveOption);
     QJsonObject out;
     for (auto it=input.begin(); it!=input.end(); ++it) {
-        if (sensitive.match(it.key()).hasMatch()) out.insert(it.key(), QStringLiteral("[REDACTED]"));
+        if (security::nameLooksSensitive(it.key())) out.insert(it.key(), QStringLiteral("[REDACTED]"));
+        else if (it.value().isString() && security::valueLooksLikeCredential(it.value().toString())) out.insert(it.key(), QStringLiteral("[REDACTED]"));
         else if (it.value().isObject()) out.insert(it.key(), storedSafe(it.value().toObject()));
         else out.insert(it.key(), it.value());
     }
@@ -82,8 +83,13 @@ FlowEditor::FlowEditor(data::ProjectStore *store, qint64 projectId, QWidget *par
 void FlowEditor::appendLog(const QString &text) { log_->appendPlainText(text); }
 QJsonObject FlowEditor::currentJson() const { FlowDefinition copy=flow_; copy.name=name_->text().trimmed(); for(auto &node:copy.nodes) node.config=storedSafe(node.config); return toJson(copy); }
 bool FlowEditor::safeToPersist() const {
-    static const QRegularExpression sensitive(QStringLiteral("password|passwd|secret|token|authorization|cookie|api[_-]?key|client[_-]?secret"),QRegularExpression::CaseInsensitiveOption);
-    for(const auto &node:flow_.nodes){ const auto data=QString::fromUtf8(QJsonDocument(node.config).toJson(QJsonDocument::Compact)); if(sensitive.match(data).hasMatch()) return false; }
+    for(const auto &node:flow_.nodes){
+        // M3: claves y valores sensibles (incluidos cuerpos JSON en texto plano).
+        if(security::jsonLooksSensitive(node.config)) return false;
+        const auto data=QString::fromUtf8(QJsonDocument(node.config).toJson(QJsonDocument::Compact));
+        // También el texto serializado, para pillar nombres de cabecera dentro de cadenas.
+        if(security::nameLooksSensitive(data)) return false;
+    }
     return true;
 }
 void FlowEditor::addNode() {
@@ -109,7 +115,24 @@ void FlowEditor::saveFlow() {
     int index=savedFlows_->findData(flowId_); if(index<0){savedFlows_->addItem(flow_.name,flowId_);index=savedFlows_->count()-1;} savedFlows_->setCurrentIndex(index); appendLog(QStringLiteral("Flujo guardado localmente."));
 }
 void FlowEditor::validateFlow(){flow_.name=name_->text().trimmed();const auto errors=validate(flow_); if(errors.isEmpty()) appendLog(QStringLiteral("Validación correcta: grafo acíclico y alcanzable.")); else appendLog(errors.join(QStringLiteral("\n")));}
-void FlowEditor::runFlow(){flow_.name=name_->text().trimmed();FlowEngine engine; const auto result=engine.run(flow_); QJsonObject saved{{"status",result.status},{"error",result.error},{"steps",static_cast<int>(result.logs.size())}}; if(flowId_>0) store_->addFlowRun(flowId_,result.status,QString::fromUtf8(QJsonDocument(saved).toJson(QJsonDocument::Compact))); appendLog(QStringLiteral("Ejecución: ")+result.status+(result.error.isEmpty()?QString{}:QStringLiteral(" · ")+result.error)); for(const auto &entry:result.logs) appendLog(QStringLiteral("%1 · %2 · %3 ms · %4").arg(entry.nodeId,entry.status).arg(entry.elapsedMs).arg(entry.message));}
+void FlowEditor::runFlow(){
+    flow_.name=name_->text().trimmed();
+    // B2/AGENT.md: confirmar antes de toda ejecución de flujo que enviará red, listando destinos.
+    QStringList destinations;
+    for(const auto &node:flow_.nodes)
+        if(node.type==QStringLiteral("request"))
+            destinations.append(QStringLiteral("%1 %2").arg(node.config.value(QStringLiteral("method")).toString(QStringLiteral("GET")), node.config.value(QStringLiteral("url")).toString()));
+    if(destinations.isEmpty()) destinations.append(QStringLiteral("(el flujo no tiene nodos de petición)"));
+    if(QMessageBox::question(this, QStringLiteral("Confirmar ejecución de red"),
+        QStringLiteral("El flujo enviará peticiones de red a estos destinos:\n\n%1\n\nVerifica método y URL. ¿Ejecutar ahora?").arg(destinations.join(QLatin1Char('\n'))))!=QMessageBox::Yes) return;
+    FlowEngine engine;
+    const auto result=engine.run(flow_, {}, nullptr, 500,
+        [this](const QUrl &from, const QUrl &to) {
+            if(network::isSameOrigin(from, to)) return true;
+            return QMessageBox::question(this, QStringLiteral("Redirección cruzada"),
+                QStringLiteral("El servidor pide redirigir de %1 a %2.\n\n¿Permitir este salto?").arg(from.toString(), to.toString()))==QMessageBox::Yes;
+        });
+    QJsonObject saved{{"status",result.status},{"error",result.error},{"steps",static_cast<int>(result.logs.size())}}; if(flowId_>0) store_->addFlowRun(flowId_,result.status,QString::fromUtf8(QJsonDocument(saved).toJson(QJsonDocument::Compact))); appendLog(QStringLiteral("Ejecución: ")+result.status+(result.error.isEmpty()?QString{}:QStringLiteral(" · ")+result.error)); for(const auto &entry:result.logs) appendLog(QStringLiteral("%1 · %2 · %3 ms · %4").arg(entry.nodeId,entry.status).arg(entry.elapsedMs).arg(entry.message));}
 void FlowEditor::loadSelectedFlow(int index){if(index<0)return;const qint64 id=savedFlows_->itemData(index).toLongLong();for(const auto &row:store_->flows(projectId_))if(row.value("id").toLongLong()==id){QJsonParseError error;const auto doc=QJsonDocument::fromJson(row.value("definition").toString().toUtf8(),&error);if(error.error!=QJsonParseError::NoError||!doc.isObject()){appendLog(QStringLiteral("No se pudo leer el flujo guardado."));return;}flow_=fromJson(doc.object());flowId_=id;name_->setText(flow_.name);positions_.clear();for(int i=0;i<flow_.nodes.size();++i)positions_[flow_.nodes[i].id]=QPointF(30+(i%3)*230,30+(i/3)*120);rebuildCanvas();return;}}
 void FlowEditor::selectedNodeChanged(){auto it=std::find_if(flow_.nodes.cbegin(),flow_.nodes.cend(),[this](const FlowNode &n){return n.id==selectedNodeId_;});if(it!=flow_.nodes.cend())config_->setPlainText(QString::fromUtf8(QJsonDocument(it->config).toJson(QJsonDocument::Indented)));}
 void FlowEditor::nodeMoved(const QString &id,const QPointF &position){positions_[id]=position;}

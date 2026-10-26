@@ -10,7 +10,22 @@
 #include <QString>
 #include <QUrl>
 
+#include <functional>
+
 namespace reqflow::network {
+
+// M1: tope de tamaño de respuesta; ver docs/SECURITY_AUDIT.md.
+inline constexpr qint64 kMaxResponseBytes = 10 * 1024 * 1024;
+// B2: máximo de saltos de redirección por petición.
+inline constexpr int kMaxRedirects = 5;
+
+// Decide si se permite una redirección de `from` a `to`. Sin verificador,
+// HttpClient solo permite saltos al mismo origen (esquema/host/puerto).
+using RedirectVerifier = std::function<bool(const QUrl &from, const QUrl &to)>;
+
+[[nodiscard]] bool isSameOrigin(const QUrl &left, const QUrl &right);
+[[nodiscard]] bool isValidHeaderName(const QString &name);
+[[nodiscard]] bool isValidHeaderValue(const QString &value);
 
 struct HttpResponse {
     QUrl url;
@@ -37,7 +52,8 @@ class HttpClient final : public QObject {
     Q_OBJECT
 public:
     explicit HttpClient(QObject *parent = nullptr);
-    [[nodiscard]] QNetworkReply *send(const HttpRequest &request);
+    [[nodiscard]] QNetworkReply *send(const HttpRequest &request,
+                                      const RedirectVerifier &verifier = {});
     void abortAll();
 
 signals:

@@ -6,14 +6,15 @@ La estructura en el repositorio está separada por responsabilidades, aunque la 
 
 ## Componentes
 
-- `src/main.cpp`: punto de entrada Qt; abre el almacén, ejecuta el gate de autenticación antes de construir/mostrar la ventana principal y termina sin mostrarla si se cancela.
+- `src/main.cpp`: punto de entrada Qt; fija `umask` 0077 en Unix antes de abrir el almacén (permisos 0600 de la base), ejecuta el gate de autenticación antes de construir/mostrar la ventana principal y termina sin mostrarla si se cancela.
+- `include/reqflow/security/secrets.h`: patrón y funciones de detección heurística de secretos compartidos por `ProjectStore`, `MainWindow`, `FlowEngine` y `FlowEditor` (nombres, valores con forma de credencial, JSON, texto y URLs). Cabecera sin estado, sin dependencias más allá de QtCore.
 - `include/reqflow/ui/authdialog.h`, `src/ui/authdialog.cpp`: diálogo modal nativo de alta/login, consistente con carbón/grafito y terracota, con feedback accesible, contraseña oculta y confirmación solo en el primer registro.
 - `ProjectStore` implementa cuenta local sobre SQLite: normalización de usuario, PBKDF2-HMAC-SHA-256 y persistencia de la sal/verificador. El login no implica backend, sincronización o cifrado de base.
 - `include/reqflow/ui/`, `src/ui/`: interfaz Qt Widgets para proyectos, editor HTTP, historial, entornos, suites API, importación OpenAPI y editor de flujos.
-- `include/reqflow/network/`, `src/network/`: cliente HTTP basado en `QNetworkAccessManager`, con señales para resultados asíncronos.
+- `include/reqflow/network/`, `src/network/`: cliente HTTP basado en `QNetworkAccessManager`, con señales para resultados asíncronos. Limita cada respuesta a 10 MiB (abort diferido en `downloadProgress`), permite un máximo de 5 redirecciones y exige un verificador `RedirectVerifier` (por defecto solo mismo origen respecto de la URL original). Expone también los validadores de cabeceras RFC 7230 (`isValidHeaderName`/`isValidHeaderValue`) que comparten UI y motor de flujos.
 - `include/reqflow/data/`, `src/data/`: `ProjectStore`, SQLite vía Qt SQL, migración inicial con `CREATE TABLE IF NOT EXISTS` y API Qt para expansión de plantillas.
 - `src/flow/flowengine.cpp`: el nodo HTTP valida credenciales sospechosas, método, variables, URL y cabeceras antes de iniciar la petición. Errores anteriores al envío marcan el nodo/run como fallido y terminan la ejecución. Las pruebas de regresión están añadidas, sin ejecución confirmada en este entorno.
-- `src/openapi/openapiimporter.cpp`, `src/openapi/yaml.cpp`: conversión YAML y análisis del subconjunto OpenAPI común; la importación de `$ref` se limita a referencias locales de un nivel en Path Items/operaciones y advierte sobre el resto.
+- `src/openapi/openapiimporter.cpp`, `src/openapi/yaml.cpp`: conversión YAML y análisis del subconjunto OpenAPI común; la importación de `$ref` se limita a referencias locales de un nivel en Path Items/operaciones y advierte sobre el resto. La conversión YAML aplica un presupuesto de 100 000 nodos expandibles que corta bombas de aliases («billion laughs») antes de expandirlas, y una base de servidor con esquema no http(s) se ignora con advertencia.
 - `LICENSE`: licencia Apache-2.0 del proyecto; `backend/Cargo.toml` la declara para la crate Rust.
 - `backend/`: crate Rust `reqflow_backend`, compilada como biblioteca estática e integrada con C++ mediante una FFI C pequeña. En este primer paso implementa la expansión estricta de `{{identificador}}`; el resto del backend sigue en C++/Qt.
 - `src/data/rustbackend.cpp`, `include/reqflow/data/rustbackend.h`: adaptador que serializa el entorno JSON y gestiona propiedad/liberación de strings Rust antes de devolver los resultados a Qt.

@@ -6,6 +6,7 @@
 #include <QJsonParseError>
 #include <QJsonValue>
 #include <QRegularExpression>
+#include <QUrl>
 
 namespace reqflow::openapi {
 ImportResult parseOpenApiObject(const QJsonObject &root);
@@ -47,6 +48,18 @@ ImportResult parseOpenApiObject(const QJsonObject &root) {
     if (!root.value(QStringLiteral("paths")).isObject()) { result.error = QStringLiteral("La propiedad paths debe ser un objeto."); return result; }
     const QJsonArray servers = root.value(QStringLiteral("servers")).toArray();
     const QString base = servers.isEmpty() ? QString{} : servers.first().toObject().value(QStringLiteral("url")).toString();
+    QString effectiveBase = base;
+    if (!base.isEmpty()) {
+        const QUrl baseUrl(base);
+        const QString scheme = baseUrl.scheme().toLower();
+        // B4: una base con esquema distinto de http/https se ignora con advertencia
+        // en lugar de producir URLs no enviables (o potencialmente peligrosas).
+        if (baseUrl.isValid() && !scheme.isEmpty() &&
+            scheme != QStringLiteral("http") && scheme != QStringLiteral("https")) {
+            result.warnings.append(QStringLiteral("La URL base del servidor «%1» no usa http:// o https://; se ignora y las rutas se guardan relativas.").arg(base));
+            effectiveBase.clear();
+        }
+    }
     const auto paths=root.value(QStringLiteral("paths")).toObject();
     if(paths.isEmpty()) result.warnings.append(QStringLiteral("La especificación no contiene paths."));
     const auto components = root.value(QStringLiteral("components")).toObject();
@@ -95,7 +108,7 @@ ImportResult parseOpenApiObject(const QJsonObject &root) {
             const auto jsonContent=content.value(QStringLiteral("application/json")).toObject();
             if(!jsonContent.isEmpty()){request.body=schemaSample(jsonContent.value(QStringLiteral("schema")).toObject());if(!request.body.isEmpty()) request.headers+=QStringLiteral("Content-Type: application/json\n");}
             if(!content.isEmpty()&&jsonContent.isEmpty()) result.warnings.append(QStringLiteral("%1: tipo de cuerpo no compatible; no importado.").arg(operationName));
-            if(!base.isEmpty()) request.path=base+request.path;
+            if(!effectiveBase.isEmpty()) request.path=effectiveBase+request.path;
             result.requests.append(request);
         }
     }
