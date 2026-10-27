@@ -21,17 +21,9 @@ AuthDialog::AuthDialog(data::ProjectStore &store, bool registration, QWidget *pa
     setMinimumWidth(440);
 #endif
     setWindowFlag(Qt::WindowContextHelpButtonHint, false);
-    setStyleSheet(QStringLiteral(
-        "QDialog{background:#171816;color:#f0eee9;}"
-        "QFrame#card{background:#222320;border:1px solid #373832;border-radius:14px;}"
-        "QLabel{color:#f0eee9;} QLabel#eyebrow{color:#c77d5b;font-size:11px;font-weight:700;letter-spacing:2px;}"
-        "QLabel#subtitle{color:#a7a69f;} QLabel#hint{color:#aaa99f;font-size:11px;} QLabel#localnote{color:#8da48b;font-size:11px;}"
-        "QLineEdit{background:#191a18;color:#f0eee9;border:1px solid #41423b;border-radius:7px;padding:11px 12px;selection-background-color:#a85f44;}"
-        "QLineEdit:focus{border:1px solid #bd7557;}"
-        "QPushButton{background:#a85f44;color:#fffaf5;border:0;border-radius:7px;padding:11px 16px;font-weight:600;}"
-        "QPushButton:hover{background:#bb7052;} QPushButton:pressed{background:#884d38;}"
-        "QPushButton#cancel{background:#30312d;color:#dedbd3;} QPushButton#cancel:hover{background:#3c3d38;}"
-        "QLabel#error{color:#e7a18b;background:#382923;border:1px solid #704632;border-radius:6px;padding:8px;}"));
+    // El estilo global (tema oscuro unificado) se aplica en main(); aquí solo
+    // se marcan las identidades (card, eyebrow, subtitle, hint, localnote,
+    // error, cancel) que la QSS global referencia con selectores por nombre.
 
     auto *outer = new QVBoxLayout(this);
 #ifdef Q_OS_ANDROID
@@ -101,9 +93,12 @@ AuthDialog::AuthDialog(data::ProjectStore &store, bool registration, QWidget *pa
     auto *cancel = new QPushButton(QStringLiteral("Cancelar"), card);
     cancel->setObjectName(QStringLiteral("cancel"));
     cancel->setAutoDefault(false);
+    cancel->setToolTip(QStringLiteral("Salir sin iniciar sesión (Esc)"));
     buttons->addWidget(cancel);
     submitButton_ = new QPushButton(registration_ ? QStringLiteral("Crear cuenta") : QStringLiteral("Entrar"), card);
+    submitButton_->setProperty("variant", "primary");
     submitButton_->setDefault(true);
+    submitButton_->setToolTip(QStringLiteral("Confirmar y continuar (Intro)"));
     buttons->addWidget(submitButton_);
     layout->addLayout(buttons);
     outer->addWidget(card);

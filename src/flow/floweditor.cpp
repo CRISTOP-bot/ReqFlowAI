@@ -1,6 +1,7 @@
 #include "reqflow/flow/floweditor.h"
 #include "reqflow/flow/flowgraphics.h"
 #include "reqflow/security/secrets.h"
+#include "reqflow/ui/theme.h"
 
 #include <QHBoxLayout>
 #include <QInputDialog>
@@ -42,20 +43,40 @@ FlowEditor::FlowEditor(data::ProjectStore *store, qint64 projectId, QWidget *par
     name_ = new QLineEdit(this); name_->setPlaceholderText(QStringLiteral("Nombre del flujo"));
     type_ = new QComboBox(this); type_->addItems({"start", "request", "extract", "transform", "condition", "result"});
     auto *add = new QPushButton(QStringLiteral("Añadir nodo"), this);
+    add->setToolTip(QStringLiteral("Añadir un nodo del tipo seleccionado al lienzo"));
     auto *connectButton = new QPushButton(QStringLiteral("Conectar nodos"), this);
+    connectButton->setToolTip(QStringLiteral("Crear una arista entre dos nodos (sin bucles directos)"));
     auto *validateButton = new QPushButton(QStringLiteral("Validar"), this);
+    validateButton->setToolTip(QStringLiteral("Comprobar que el grafo es acíclico y alcanzable; no envía red"));
     auto *runButton = new QPushButton(QStringLiteral("Ejecutar"), this);
+    runButton->setProperty("variant", "primary");
+    runButton->setToolTip(QStringLiteral("Ejecutar el flujo: pide confirmación antes de enviar cualquier petición"));
     auto *saveButton = new QPushButton(QStringLiteral("Guardar flujo"), this);
+    saveButton->setToolTip(QStringLiteral("Guardar el flujo en la base local (sin credenciales)"));
     top->addWidget(savedFlows_); top->addWidget(name_, 1); top->addWidget(type_); top->addWidget(add); top->addWidget(connectButton); top->addWidget(validateButton); top->addWidget(runButton); top->addWidget(saveButton);
     root->addLayout(top);
     auto *split = new QSplitter(Qt::Horizontal, this);
     scene_ = new QGraphicsScene(this); view_ = new QGraphicsView(scene_, this); view_->setRenderHint(QPainter::Antialiasing); view_->setDragMode(QGraphicsView::RubberBandDrag); view_->setMinimumHeight(260);
+#ifndef Q_OS_ANDROID
+    // Con la escena vacía el splitter encoge el lienzo a casi nada; en
+    // escritorio se reserva ancho para que el editor siempre sea usable.
+    view_->setMinimumWidth(360);
+#endif
     split->addWidget(view_);
     auto *right = new QWidget(this); auto *rightLayout = new QVBoxLayout(right);
-    rightLayout->addWidget(new QLabel(QStringLiteral("Configuración JSON del nodo seleccionado"), right));
+    auto *configTitle = new QLabel(QStringLiteral("Configuración JSON del nodo seleccionado"), right);
+    configTitle->setObjectName(QStringLiteral("sectionTitle"));
+    rightLayout->addWidget(configTitle);
     config_ = new QPlainTextEdit(right); config_->setPlaceholderText(QStringLiteral("{\n  \"url\": \"https://…\"\n}")); rightLayout->addWidget(config_, 1);
-    auto *apply = new QPushButton(QStringLiteral("Aplicar configuración"), right); rightLayout->addWidget(apply);
-    rightLayout->addWidget(new QLabel(QStringLiteral("Validación y ejecución"), right)); log_ = new QPlainTextEdit(right); log_->setReadOnly(true); rightLayout->addWidget(log_, 1);
+    auto *apply = new QPushButton(QStringLiteral("Aplicar configuración"), right);
+    apply->setToolTip(QStringLiteral("Validar el JSON y aplicarlo al nodo seleccionado"));
+    rightLayout->addWidget(apply);
+    auto *logTitle = new QLabel(QStringLiteral("Validación y ejecución"), right);
+    logTitle->setObjectName(QStringLiteral("sectionTitle"));
+    rightLayout->addWidget(logTitle);
+    log_ = new QPlainTextEdit(right); log_->setReadOnly(true);
+    log_->setPlaceholderText(QStringLiteral("Aquí aparecerán los resultados de validar o ejecutar el flujo."));
+    rightLayout->addWidget(log_, 1);
     split->addWidget(right); split->setStretchFactor(0, 3); split->setStretchFactor(1, 2); root->addWidget(split, 1);
     connect(add, &QPushButton::clicked, this, &FlowEditor::addNode);
     connect(connectButton, &QPushButton::clicked, this, [this] {
@@ -136,6 +157,6 @@ void FlowEditor::runFlow(){
 void FlowEditor::loadSelectedFlow(int index){if(index<0)return;const qint64 id=savedFlows_->itemData(index).toLongLong();for(const auto &row:store_->flows(projectId_))if(row.value("id").toLongLong()==id){QJsonParseError error;const auto doc=QJsonDocument::fromJson(row.value("definition").toString().toUtf8(),&error);if(error.error!=QJsonParseError::NoError||!doc.isObject()){appendLog(QStringLiteral("No se pudo leer el flujo guardado."));return;}flow_=fromJson(doc.object());flowId_=id;name_->setText(flow_.name);positions_.clear();for(int i=0;i<flow_.nodes.size();++i)positions_[flow_.nodes[i].id]=QPointF(30+(i%3)*230,30+(i/3)*120);rebuildCanvas();return;}}
 void FlowEditor::selectedNodeChanged(){auto it=std::find_if(flow_.nodes.cbegin(),flow_.nodes.cend(),[this](const FlowNode &n){return n.id==selectedNodeId_;});if(it!=flow_.nodes.cend())config_->setPlainText(QString::fromUtf8(QJsonDocument(it->config).toJson(QJsonDocument::Indented)));}
 void FlowEditor::nodeMoved(const QString &id,const QPointF &position){positions_[id]=position;}
-void FlowEditor::rebuildCanvas(){scene_->clear();QMap<QString,FlowNodeItem*> items;for(const auto &node:flow_.nodes){auto *item=new FlowNodeItem(node.id,node.type);scene_->addItem(item);item->setPos(positions_.value(node.id));items[node.id]=item;connect(item,&FlowNodeItem::selected,this,[this](const QString &id){selectedNodeId_=id;selectedNodeChanged();});connect(item,&FlowNodeItem::moved,this,&FlowEditor::nodeMoved);}for(const auto &edge:flow_.edges)if(items.contains(edge.source)&&items.contains(edge.target)){auto *line=scene_->addLine(QLineF(items[edge.source]->pos()+QPointF(95,74),items[edge.target]->pos()),QPen(QColor("#a99cff"),2));line->setZValue(-1);auto *label=scene_->addText(edge.label);label->setDefaultTextColor(QColor("#e5e7eb"));label->setPos((items[edge.source]->pos()+items[edge.target]->pos())/2);}scene_->setSceneRect(scene_->itemsBoundingRect().adjusted(-30,-30,30,30));}
+void FlowEditor::rebuildCanvas(){scene_->clear();QMap<QString,FlowNodeItem*> items;for(const auto &node:flow_.nodes){auto *item=new FlowNodeItem(node.id,node.type);scene_->addItem(item);item->setPos(positions_.value(node.id));items[node.id]=item;connect(item,&FlowNodeItem::selected,this,[this](const QString &id){selectedNodeId_=id;selectedNodeChanged();});connect(item,&FlowNodeItem::moved,this,&FlowEditor::nodeMoved);}for(const auto &edge:flow_.edges)if(items.contains(edge.source)&&items.contains(edge.target)){auto *line=scene_->addLine(QLineF(items[edge.source]->pos()+QPointF(95,74),items[edge.target]->pos()),QPen(QColor(QString::fromLatin1(reqflow::ui::theme::kAccentSoft)),2));line->setZValue(-1);auto *label=scene_->addText(edge.label);label->setDefaultTextColor(QColor(QString::fromLatin1(reqflow::ui::theme::kText)));label->setPos((items[edge.source]->pos()+items[edge.target]->pos())/2);}scene_->setSceneRect(scene_->itemsBoundingRect().adjusted(-30,-30,30,30));}
 
 } // namespace reqflow::flow

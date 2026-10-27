@@ -1,9 +1,11 @@
 #include "reqflow/ui/mainwindow.h"
 #include "reqflow/ui/authdialog.h"
+#include "reqflow/ui/theme.h"
 
 #include <QApplication>
 #include <QCoreApplication>
 #include <QMessageBox>
+#include <QStyleFactory>
 
 #ifdef Q_OS_UNIX
 #include <sys/stat.h>
@@ -20,6 +22,14 @@ int main(int argc, char *argv[]) {
     QCoreApplication::setOrganizationName(QStringLiteral("ReqFlow"));
     QCoreApplication::setApplicationName(QStringLiteral("ReqFlow AI"));
     QCoreApplication::setApplicationVersion(QStringLiteral("0.2.0"));
+
+    // Tema oscuro unificado (docs/UI.md): Fusion da un aspecto consistente
+    // entre distribuciones; la paleta cubre lo que la QSS no gestiona y la
+    // hoja global sustituye a las hojas locales que tenían MainWindow y
+    // AuthDialog. Se aplica antes de crear cualquier widget.
+    application.setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
+    application.setPalette(reqflow::ui::theme::darkPalette());
+    application.setStyleSheet(reqflow::ui::theme::appStyleSheet());
 
     reqflow::data::ProjectStore authStore;
     if (!authStore.isOpen()) {

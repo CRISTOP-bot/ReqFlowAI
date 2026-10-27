@@ -64,8 +64,10 @@ add_custom_command(
 )
 add_custom_target(reqflow-rust-backend DEPENDS "${RUST_BACKEND_LIBRARY}")
 
-qt_add_executable(reqflow-ai
-    src/main.cpp
+# Fuentes de la aplicación compartidas: la app, la previsualización de UI
+# (tools/ui_preview.cpp) y cualquier otro binario de interfaz usan esta misma
+# lista para que no haya que mantener dos copias sincronizadas.
+set(REQFLOW_APP_SOURCES
     src/network/httpclient.cpp
     src/data/projectstore.cpp
     src/data/environment.cpp
@@ -78,6 +80,7 @@ qt_add_executable(reqflow-ai
     src/testing/jsondiff.cpp
     src/ui/mainwindow.cpp
     src/ui/authdialog.cpp
+    src/ui/theme.cpp
     include/reqflow/network/httpclient.h
     include/reqflow/data/projectstore.h
     include/reqflow/data/environment.h
@@ -92,6 +95,12 @@ qt_add_executable(reqflow-ai
     include/reqflow/testing/jsondiff.h
     include/reqflow/ui/mainwindow.h
     include/reqflow/ui/authdialog.h
+    include/reqflow/ui/theme.h
+)
+
+qt_add_executable(reqflow-ai
+    src/main.cpp
+    ${REQFLOW_APP_SOURCES}
 )
 target_include_directories(reqflow-ai PRIVATE include)
 add_dependencies(reqflow-ai reqflow-rust-backend)
@@ -106,10 +115,38 @@ if(ANDROID)
     set_property(TARGET reqflow-ai PROPERTY QT_ANDROID_VERSION_NAME "${PROJECT_VERSION}")
 endif()
 
+# Previsualizador de UI (docs/UI.md): construye AuthDialog y MainWindow en un
+# perfil de datos temporal y vuelca capturas PNG para revisión visual.
+# Fuera del build normal (EXCLUDE_FROM_ALL): no forma parte del binario de la
+# app ni de la CI; se compila con `cmake --build <build> --target reqflow-ui-preview`.
+if(NOT ANDROID)
+    add_executable(reqflow-ui-preview EXCLUDE_FROM_ALL
+        tools/ui_preview.cpp
+        ${REQFLOW_APP_SOURCES})
+    target_include_directories(reqflow-ui-preview PRIVATE include)
+    add_dependencies(reqflow-ui-preview reqflow-rust-backend)
+    target_link_libraries(reqflow-ui-preview PRIVATE Qt6::Core Qt6::Widgets Qt6::Network Qt6::Sql yaml-cpp::yaml-cpp "${RUST_BACKEND_LIBRARY}")
+    if(UNIX AND NOT APPLE)
+        target_link_libraries(reqflow-ui-preview PRIVATE dl pthread m)
+    endif()
+endif()
+
 include(CTest)
 if(BUILD_TESTING AND NOT ANDROID)
     find_package(Qt6 6.4 REQUIRED COMPONENTS Test)
     if(TARGET Qt6::Test)
+        # Prueba del sistema de tema (docs/UI.md): la QSS global debe parsear
+        # sin avisos de Qt, no debe dejar marcadores {{token}} sin sustituir y
+        # todos los tokens deben ser colores válidos. Corre sin display
+        # (QT_QPA_PLATFORM=offscreen, plugin instalado en CI como qt6-qpa-plugins).
+        add_executable(reqflow-ui-theme-tests
+            tests/cpp/test_ui_theme.cpp src/ui/theme.cpp include/reqflow/ui/theme.h)
+        target_include_directories(reqflow-ui-theme-tests PRIVATE include)
+        target_link_libraries(reqflow-ui-theme-tests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+        add_test(NAME reqflow-ui-theme-tests COMMAND reqflow-ui-theme-tests)
+        set_tests_properties(reqflow-ui-theme-tests PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
         add_executable(reqflow-core-tests
             tests/cpp/test_core.cpp src/network/httpclient.cpp src/data/projectstore.cpp
             src/data/environment.cpp src/data/rustbackend.cpp src/flow/flowengine.cpp

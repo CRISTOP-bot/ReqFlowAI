@@ -72,6 +72,8 @@ ctest --test-dir build --output-on-failure
 
 El target `reqflow-core-tests` cubre contratos seleccionados del cliente HTTP, persistencia, entornos, motor de flujos, importador OpenAPI, aserciones, filtros heurísticos, comparador JSON y autenticación local. El test de autenticación usa `QTemporaryDir` y cubre ausencia de cuenta, alta con nombre normalizado, validación/política (usuario inválido, contraseña corta), login correcto, contraseña/usuario incorrectos, alta duplicada y persistencia después de reabrir SQLite. El comparador tiene regresiones para diferencias, límites y claves JSON con puntos, comillas o barras invertidas. Son pruebas de núcleo, no prueba visual/GUI del flujo de login, no verifican tiempos/entropía en un entorno de producción ni validan contra un servidor real. Cada nueva función debe ampliar tests adecuados y debe explicarse qué escenarios no cubre.
 
+El target `reqflow-ui-theme-tests` (`tests/cpp/test_ui_theme.cpp`, añadido con la interfaz, ver [UI.md](UI.md)) comprueba el sistema de tema sin display (`QT_QPA_PLATFORM=offscreen`): que la hoja global no deje marcadores `{{token}}`, que mantenga las convenciones documentadas (variantes `primary`/`danger`, `#cancel`, `QStatusBar`, `#card`, `#error`), que Qt la parsee sin avisos de «stylesheet» al construir widgets representativos, que los 24 tokens sean colores válidos y que la paleta sea oscura con el acento del tema. No cubre el aspecto renderido: eso se revisa con las capturas del previsualizador `tools/ui_preview.cpp`.
+
 ### Pruebas de la auditoría de seguridad (2026-10-26)
 
 La entrega de la auditoría (ver [SECURITY_AUDIT.md](SECURITY_AUDIT.md)) añade ocho pruebas en `tests/cpp/test_core.cpp`:
@@ -104,6 +106,31 @@ cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
 cmake --build build-release --parallel         # → [100%] Built target reqflow-ai
 ctest --test-dir build-release --output-on-failure  # → 1/1 Passed  17.02 sec
 ```
+
+### Validación de la interfaz (2026-10-26, entrega «mejora de interfaz»)
+
+Con la entrega del tema oscuro unificado (ver [UI.md](UI.md)) la suite `ctest` pasó de 1 a 2 pruebas y ambas variantes volvieron a compilar y pasar en verde:
+
+```sh
+cmake --build build --parallel                # → [100%] Built target reqflow-ai, reqflow-core-tests y reqflow-ui-theme-tests
+ctest --test-dir build --output-on-failure    # → 1/2 reqflow-ui-theme-tests Passed 0.54 sec; 2/2 reqflow-core-tests Passed 18.06 sec; 100% (18.60 s)
+./build/reqflow-core-tests                    # → Totals: 24 passed, 0 failed (sin regresiones por el rediseño)
+cargo test --manifest-path backend/Cargo.toml # → 6 passed; 0 failed
+
+cmake --build build-release --parallel        # → [100%] Built target reqflow-ai
+ctest --test-dir build-release --output-on-failure  # → 100% tests passed, 0 failed out of 2 (19.11 s)
+
+# Previsualizador (target EXCLUDE_FROM_ALL; QStandardPaths en modo de prueba)
+cmake --build build --target reqflow-ui-preview
+QT_QPA_PLATFORM=offscreen ./build/reqflow-ui-preview /tmp/opencode/ui-shots
+# → 01_login.png, 02_alta_cuenta.png, 03_ventana_principal.png, 04_editor_flujos.png (captura guardada ×4, salida 0)
+
+# Humo del binario real sin display y con perfil de datos temporal
+XDG_DATA_HOME=/tmp/opencode/ui-smoke QT_QPA_PLATFORM=offscreen timeout 6 ./build/reqflow-ai
+# → EXIT=124 (queda esperando el diálogo de login, sin crasheo)
+```
+
+Las cuatro capturas se revisaron visualmente: login y alta con la tarjeta y el acento índigo del tema, ventana principal con iconos, títulos de sección, estados vacíos («aún no hay peticiones», «Envía una petición…») y barra de estado, y editor de flujos con lienzo oscuro, panel lateral y botón Ejecutar en variante primaria. No cubierto: el aspecto renderido en pantalla real de Android (sigue pendiente de QA con el APK) y la interacción manual de los diálogos.
 
 Con esto quedan compiladas y probadas ambas variantes (Debug y Release) en local; `build-release/` está ignorado por git igual que `build/`.
 

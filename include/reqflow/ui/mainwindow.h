@@ -68,6 +68,7 @@ private:
     QLabel *responseMeta_ = nullptr;
     QLineEdit *responseSearch_ = nullptr;
     QTreeWidget *jsonTree_ = nullptr;
+    QLabel *historyTitle_ = nullptr;
     QLabel *statusLabel_ = nullptr;
     QPushButton *sendButton_ = nullptr;
 };

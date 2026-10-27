@@ -1,4 +1,5 @@
 #include "reqflow/ui/mainwindow.h"
+#include "reqflow/ui/theme.h"
 #include "reqflow/flow/floweditor.h"
 #include "reqflow/data/environment.h"
 #include "reqflow/openapi/openapiimporter.h"
@@ -7,11 +8,14 @@
 #include "reqflow/testing/assertions.h"
 
 #include <QAbstractItemView>
+#include <QAction>
 #include <QColor>
 #include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFontDatabase>
+#include <QIcon>
+#include <QKeySequence>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -33,6 +37,8 @@
 #include <QNetworkRequest>
 #include <QRegularExpression>
 #include <QSplitter>
+#include <QStatusBar>
+#include <QStyle>
 #include <QTableWidgetItem>
 #include <QTextCursor>
 #include <QTreeWidgetItem>
@@ -93,28 +99,28 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), client_(this) {
 }
 
 void MainWindow::buildUi() {
-    setStyleSheet(QStringLiteral(
-        "QMainWindow,QWidget{background:#111827;color:#e5e7eb;}"
-        "QLineEdit,QPlainTextEdit,QComboBox,QTableWidget{background:#0e1625;color:#e5e7eb;border:1px solid #2c3b54;padding:6px;}"
-        "QPushButton{background:#26344c;color:#f8fafc;border:0;border-radius:5px;padding:8px 12px;}"
-        "QPushButton:hover{background:#344767;} QTabWidget::pane{border:1px solid #26344c;}"
-        "QTabBar::tab{background:#1f2937;padding:8px 14px;} QTabBar::tab:selected{background:#344767;}"
-        "QHeaderView::section{background:#26344c;color:#e5e7eb;padding:5px;border:0;}"));
+    // El estilo global (tema oscuro unificado, docs/UI.md) se aplica una sola
+    // vez en main(); aquí no se declara ninguna hoja local.
     auto *central = new QWidget(this);
     auto *outer = new QVBoxLayout(central);
     auto *brand = new QHBoxLayout;
-    auto *title = new QLabel(QStringLiteral("<b style='font-size:20px'>ReqFlow <span style='color:#a99cff'>AI</span></b>  <span style='color:#93a4bd'>Cliente HTTP local</span>"));
+    auto *title = new QLabel(QStringLiteral("<b style='font-size:20px'>ReqFlow <span style='color:%1'>AI</span></b>  <span style='color:%2'>Cliente HTTP local</span>")
+                                 .arg(QString::fromLatin1(theme::kAccentSoft), QString::fromLatin1(theme::kTextDim)));
     title->setTextFormat(Qt::RichText);
     brand->addWidget(title);
     brand->addStretch();
-    brand->addWidget(new QLabel(QStringLiteral("Cuenta local · Datos en este equipo")));
+    auto *localBadge = new QLabel(QStringLiteral("Cuenta local · Datos en este equipo"));
+    localBadge->setObjectName(QStringLiteral("muted"));
+    brand->addWidget(localBadge);
     outer->addLayout(brand);
 
     auto *projectRow = new QHBoxLayout;
     projectRow->addWidget(new QLabel(QStringLiteral("Proyecto")));
     projectBox_ = new QComboBox;
     projectRow->addWidget(projectBox_, 1);
-    auto *newProject = new QPushButton(QStringLiteral("＋ Nuevo proyecto"));
+    auto *newProject = new QPushButton(style()->standardIcon(QStyle::SP_FileDialogNewFolder),
+                                       QStringLiteral("Nuevo proyecto"));
+    newProject->setToolTip(QStringLiteral("Crear un proyecto nuevo"));
     projectRow->addWidget(newProject);
     environmentBox_ = new QComboBox;
 #ifdef Q_OS_ANDROID
@@ -124,6 +130,7 @@ void MainWindow::buildUi() {
 #endif
     environmentBox_->setToolTip(QStringLiteral("Entorno seleccionado; variables se reemplazan con {{nombre}}"));
     auto *editEnvironments = new QPushButton(QStringLiteral("Entornos…"));
+    editEnvironments->setToolTip(QStringLiteral("Crear y editar entornos con variables {{nombre}}"));
 #ifdef Q_OS_ANDROID
     outer->addLayout(projectRow);
     auto *environmentRow = new QHBoxLayout;
@@ -140,6 +147,7 @@ void MainWindow::buildUi() {
     auto *actionsRow = new QHBoxLayout;
 #endif
     auto *flowsButton = new QPushButton(QStringLiteral("Flujos visuales"));
+    flowsButton->setToolTip(QStringLiteral("Abrir el editor visual de flujos (BETA)"));
 #ifdef Q_OS_ANDROID
     actionsRow->addWidget(flowsButton);
 #else
@@ -147,13 +155,16 @@ void MainWindow::buildUi() {
 #endif
     connect(flowsButton, &QPushButton::clicked, this, &MainWindow::openFlowEditor);
     auto *suitesButton = new QPushButton(QStringLiteral("Suites API"));
+    suitesButton->setToolTip(QStringLiteral("Definir y ejecutar suites de aserciones sobre peticiones guardadas"));
 #ifdef Q_OS_ANDROID
     actionsRow->addWidget(suitesButton);
 #else
     projectRow->addWidget(suitesButton);
 #endif
     connect(suitesButton, &QPushButton::clicked, this, &MainWindow::manageAssertionSuites);
-    auto *openApiButton = new QPushButton(QStringLiteral("Importar OpenAPI"));
+    auto *openApiButton = new QPushButton(style()->standardIcon(QStyle::SP_DialogOpenButton),
+                                           QStringLiteral("Importar OpenAPI"));
+    openApiButton->setToolTip(QStringLiteral("Importar peticiones desde una especificación OpenAPI JSON/YAML (Ctrl+O)"));
 #ifdef Q_OS_ANDROID
     actionsRow->addWidget(openApiButton);
     actionsRow->addStretch();
@@ -161,7 +172,9 @@ void MainWindow::buildUi() {
 #else
     projectRow->addWidget(openApiButton);
     projectRow->addStretch();
-    projectRow->addWidget(new QLabel(QStringLiteral("Verifica el destino antes de enviar.")));
+    auto *safetyHint = new QLabel(QStringLiteral("Verifica el destino antes de enviar."));
+    safetyHint->setObjectName(QStringLiteral("muted"));
+    projectRow->addWidget(safetyHint);
     outer->addLayout(projectRow);
 #endif
     connect(openApiButton, &QPushButton::clicked, this, &MainWindow::importOpenApi);
@@ -181,9 +194,12 @@ void MainWindow::buildUi() {
     savedRequestBox_->setMinimumWidth(180);
 #endif
     savedRow->addWidget(savedRequestBox_, 1);
-    auto *saveButton = new QPushButton(QStringLiteral("Guardar"));
+    auto *saveButton = new QPushButton(style()->standardIcon(QStyle::SP_DialogSaveButton),
+                                       QStringLiteral("Guardar"));
+    saveButton->setToolTip(QStringLiteral("Guardar la petición actual (Ctrl+S)"));
     savedRow->addWidget(saveButton);
     auto *duplicateButton = new QPushButton(QStringLiteral("Duplicar"));
+    duplicateButton->setToolTip(QStringLiteral("Guardar una copia como petición nueva"));
     savedRow->addWidget(duplicateButton);
     requestLayout->addLayout(savedRow);
     connect(savedRequestBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, &MainWindow::loadSavedRequest);
@@ -198,8 +214,9 @@ void MainWindow::buildUi() {
     urlEdit_ = new QLineEdit;
     urlEdit_->setPlaceholderText(QStringLiteral("https://api.example.com/v1/resource"));
     urlRow->addWidget(urlEdit_, 1);
-    sendButton_ = new QPushButton(QStringLiteral("Enviar  ▶"));
-    sendButton_->setStyleSheet(QStringLiteral("background:#6558e8;font-weight:bold;"));
+    sendButton_ = new QPushButton(style()->standardIcon(QStyle::SP_MediaPlay), QStringLiteral("Enviar"));
+    sendButton_->setProperty("variant", "primary");
+    sendButton_->setToolTip(QStringLiteral("Enviar la petición (Ctrl+Intro)"));
     urlRow->addWidget(sendButton_);
     requestLayout->addLayout(urlRow);
     connect(sendButton_, &QPushButton::clicked, this, &MainWindow::sendRequest);
@@ -223,8 +240,9 @@ void MainWindow::buildUi() {
     requestLayout->addWidget(requestTabs, 3);
 
     auto *historyHeader = new QHBoxLayout;
-    auto *historyTitle = new QLabel(QStringLiteral("Historial reciente (doble clic para revisar)"));
-    historyHeader->addWidget(historyTitle, 1);
+    historyTitle_ = new QLabel(QStringLiteral("Historial reciente (doble clic para revisar)"));
+    historyTitle_->setObjectName(QStringLiteral("sectionTitle"));
+    historyHeader->addWidget(historyTitle_, 1);
     auto *compareButton = new QPushButton(QStringLiteral("Comparar seleccionadas · BETA"));
     compareButton->setToolTip(QStringLiteral("Compara el JSON de dos respuestas seleccionadas del historial; no realiza solicitudes de red."));
     historyHeader->addWidget(compareButton);
@@ -241,16 +259,20 @@ void MainWindow::buildUi() {
 
     auto *responsePanel = new QWidget;
     auto *responseLayout = new QVBoxLayout(responsePanel);
-    responseLayout->addWidget(new QLabel(QStringLiteral("<b style='font-size:15px'>Respuesta</b>")));
+    auto *responseTitle = new QLabel(QStringLiteral("Respuesta"));
+    responseTitle->setObjectName(QStringLiteral("sectionTitle"));
+    responseLayout->addWidget(responseTitle);
     responseMeta_ = new QLabel(QStringLiteral("Envía una petición para ver la respuesta"));
+    responseMeta_->setObjectName(QStringLiteral("muted"));
     responseMeta_->setWordWrap(true);
     responseLayout->addWidget(responseMeta_);
     auto *responseTabs = new QTabWidget;
     auto *bodyPage = new QWidget;
     auto *bodyLayout = new QVBoxLayout(bodyPage);
     auto *searchRow = new QHBoxLayout;
-    responseSearch_ = new QLineEdit; responseSearch_->setPlaceholderText(QStringLiteral("Buscar en cuerpo o árbol JSON…"));
-    auto *findButton = new QPushButton(QStringLiteral("Buscar siguiente"));
+    responseSearch_ = new QLineEdit; responseSearch_->setPlaceholderText(QStringLiteral("Buscar en cuerpo o árbol JSON… (Ctrl+F)"));
+    auto *findButton = new QPushButton(style()->standardIcon(QStyle::SP_ArrowDown), QStringLiteral("Buscar siguiente"));
+    findButton->setToolTip(QStringLiteral("Ir a la siguiente coincidencia (Intro en el campo de búsqueda)"));
     searchRow->addWidget(responseSearch_, 1); searchRow->addWidget(findButton); bodyLayout->addLayout(searchRow);
 #ifdef Q_OS_ANDROID
     auto *bodySplit = new QSplitter(Qt::Vertical, bodyPage);
@@ -286,9 +308,31 @@ void MainWindow::buildUi() {
     split->setStretchFactor(0, 3); split->setStretchFactor(1, 2);
 #endif
     outer->addWidget(split, 1);
+    // Barra de estado real (antes era una etiqueta dentro del layout central):
+    // recibe los mensajes de estado y permanece visible al cambiar el layout.
     statusLabel_ = new QLabel(QStringLiteral("Listo · Los datos se guardan localmente"));
-    outer->addWidget(statusLabel_);
+    statusBar()->addWidget(statusLabel_, 1);
     setCentralWidget(central);
+
+    // Accesos de teclado (docs/UI.md). Como QAction de la ventana funcionan
+    // con cualquier widget enfocado; los atajos no dependen del foco.
+    auto addShortcut = [this](const QString &text, const QKeySequence &key, void (MainWindow::*slot)()) {
+        auto *action = new QAction(text, this);
+        action->setShortcut(key);
+        connect(action, &QAction::triggered, this, slot);
+        addAction(action);
+    };
+    addShortcut(QStringLiteral("Enviar petición"), QKeySequence(Qt::CTRL | Qt::Key_Return), &MainWindow::sendRequest);
+    addShortcut(QStringLiteral("Guardar petición"), QKeySequence::Save, &MainWindow::saveRequest);
+    addShortcut(QStringLiteral("Importar OpenAPI"), QKeySequence::Open, &MainWindow::importOpenApi);
+    auto *focusUrl = new QAction(QStringLiteral("Enfocar la URL"), this);
+    focusUrl->setShortcut(QKeySequence(QStringLiteral("Ctrl+L")));
+    connect(focusUrl, &QAction::triggered, this, [this] { urlEdit_->setFocus(); urlEdit_->selectAll(); });
+    addAction(focusUrl);
+    auto *focusSearch = new QAction(QStringLiteral("Buscar en la respuesta"), this);
+    focusSearch->setShortcut(QKeySequence(QStringLiteral("Ctrl+F")));
+    connect(focusSearch, &QAction::triggered, this, [this] { responseSearch_->setFocus(); responseSearch_->selectAll(); });
+    addAction(focusSearch);
 }
 
 void MainWindow::refreshProjects() {
@@ -317,6 +361,9 @@ void MainWindow::refreshProject() {
     environmentBox_->blockSignals(false);
     historyTable_->setRowCount(0);
     const auto items = store_.history(projectId_, 50);
+    historyTitle_->setText(items.isEmpty()
+                               ? QStringLiteral("Historial reciente · aún no hay peticiones")
+                               : QStringLiteral("Historial reciente (doble clic para revisar)"));
     for (const auto &item : items) {
         const int row = historyTable_->rowCount(); historyTable_->insertRow(row);
         historyTable_->setItem(row, 0, new QTableWidgetItem(item.value(QStringLiteral("method")).toString()));
@@ -331,6 +378,7 @@ void MainWindow::manageEnvironments() {
     if (projectId_ <= 0) return;
     QDialog dialog(this);
     dialog.setWindowTitle(QStringLiteral("Entornos y variables locales"));
+    dialog.setWindowFlag(Qt::WindowContextHelpButtonHint, false);
     dialog.resize(560, 480);
     auto *layout = new QVBoxLayout(&dialog);
     auto *list = new QComboBox(&dialog);
@@ -347,8 +395,16 @@ void MainWindow::manageEnvironments() {
     auto *buttons = new QHBoxLayout;
     auto *newButton = new QPushButton(QStringLiteral("Nuevo"), &dialog);
     auto *saveButton = new QPushButton(QStringLiteral("Guardar"), &dialog);
+    saveButton->setProperty("variant", "primary");
+    saveButton->setDefault(true);
     auto *deleteButton = new QPushButton(QStringLiteral("Eliminar"), &dialog);
-    buttons->addWidget(newButton); buttons->addStretch(); buttons->addWidget(deleteButton); buttons->addWidget(saveButton); layout->addLayout(buttons);
+    deleteButton->setProperty("variant", "danger");
+    deleteButton->setToolTip(QStringLiteral("Eliminar el entorno seleccionado"));
+    auto *closeButton = new QPushButton(QStringLiteral("Cerrar"), &dialog);
+    closeButton->setObjectName(QStringLiteral("cancel"));
+    buttons->addWidget(newButton); buttons->addStretch();
+    buttons->addWidget(closeButton); buttons->addWidget(deleteButton); buttons->addWidget(saveButton); layout->addLayout(buttons);
+    connect(closeButton, &QPushButton::clicked, &dialog, &QDialog::reject);
     connect(list, qOverload<int>(&QComboBox::currentIndexChanged), &dialog, [this,list,envName,variables](int index) {
         if (index < 0) return;
         const qint64 id = list->itemData(index).toLongLong();
@@ -379,6 +435,7 @@ void MainWindow::manageAssertionSuites() {
     if (projectId_ <= 0) return;
     QDialog dialog(this);
     dialog.setWindowTitle(QStringLiteral("Suites de aserciones API"));
+    dialog.setWindowFlag(Qt::WindowContextHelpButtonHint, false);
     dialog.resize(680, 500);
     auto *layout = new QVBoxLayout(&dialog);
     layout->addWidget(new QLabel(QStringLiteral("Define validaciones JSON para una petición guardada. Ejecutar envía la petición: siempre se pide confirmación."), &dialog));
@@ -404,7 +461,12 @@ void MainWindow::manageAssertionSuites() {
     auto *buttons = new QHBoxLayout;
     auto *save = new QPushButton(QStringLiteral("Guardar suite"), &dialog);
     auto *run = new QPushButton(QStringLiteral("Ejecutar suite…"), &dialog);
-    buttons->addStretch(); buttons->addWidget(save); buttons->addWidget(run); layout->addLayout(buttons);
+    run->setProperty("variant", "primary");
+    run->setToolTip(QStringLiteral("Ejecuta la suite: siempre pide confirmación antes de enviar la petición"));
+    auto *closeSuite = new QPushButton(QStringLiteral("Cerrar"), &dialog);
+    closeSuite->setObjectName(QStringLiteral("cancel"));
+    buttons->addStretch(); buttons->addWidget(closeSuite); buttons->addWidget(save); buttons->addWidget(run); layout->addLayout(buttons);
+    connect(closeSuite, &QPushButton::clicked, &dialog, &QDialog::reject);
     connect(suiteList, qOverload<int>(&QComboBox::currentIndexChanged), &dialog, [this, suiteList, suiteName, requestList, definition](int index) {
         const qint64 id = suiteList->itemData(index).toLongLong();
         if (id < 1) { suiteName->clear(); requestList->setCurrentIndex(0); definition->setPlainText(QStringLiteral("[]")); return; }
@@ -463,9 +525,18 @@ void MainWindow::openFlowEditor() {
     auto *dialog = new QDialog(this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->setWindowTitle(QStringLiteral("Editor visual de flujos"));
+    dialog->setWindowFlag(Qt::WindowContextHelpButtonHint, false);
     dialog->resize(1080, 700);
     auto *layout = new QVBoxLayout(dialog);
     layout->addWidget(new flow::FlowEditor(&store_, projectId_, dialog));
+    auto *closeFlow = new QPushButton(QStringLiteral("Cerrar"), dialog);
+    closeFlow->setObjectName(QStringLiteral("cancel"));
+    closeFlow->setToolTip(QStringLiteral("Cerrar el editor (también con Esc o la X de la ventana)"));
+    auto *closeFlowRow = new QHBoxLayout;
+    closeFlowRow->addStretch();
+    closeFlowRow->addWidget(closeFlow);
+    layout->addLayout(closeFlowRow);
+    connect(closeFlow, &QPushButton::clicked, dialog, &QDialog::close);
     dialog->show();
 }
 
@@ -825,7 +896,7 @@ void MainWindow::compareHistoryResponses() {
     if(first.isEmpty()||second.isEmpty()){QMessageBox::warning(this,QStringLiteral("Historial no disponible"),QStringLiteral("Una de las respuestas ya no está disponible en el historial reciente."));return;}
     // Keep visual order chronological regardless of click order.
     if(first.value(QStringLiteral("id")).toLongLong()>second.value(QStringLiteral("id")).toLongLong())std::swap(first,second);
-    QDialog dialog(this);dialog.setWindowTitle(QStringLiteral("Comparar respuestas · BETA"));dialog.resize(860,580);
+    QDialog dialog(this);dialog.setWindowTitle(QStringLiteral("Comparar respuestas · BETA"));dialog.setWindowFlag(Qt::WindowContextHelpButtonHint, false);dialog.resize(860,580);
     auto *layout=new QVBoxLayout(&dialog);
     auto *description=new QLabel(QStringLiteral("Comparación local del historial. No se envían nuevas solicitudes."));description->setWordWrap(true);layout->addWidget(description);
     auto *meta=new QLabel;meta->setWordWrap(true);
@@ -844,7 +915,11 @@ void MainWindow::compareHistoryResponses() {
         const QJsonValue after=afterDoc.isObject()?QJsonValue(afterDoc.object()):QJsonValue(afterDoc.array());
         const auto diff=testing::compareJson(before,after,2000,48);
         for(const auto &change:diff.changes){const int row=table->rowCount();table->insertRow(row);
-            const QString kind=testing::jsonChangeKindName(change.kind);auto *type=new QTableWidgetItem(kind);type->setForeground(change.kind==testing::JsonChangeKind::Added?QColor(129,164,131):change.kind==testing::JsonChangeKind::Removed?QColor(198,135,119):QColor(198,173,124));
+            const QString kind=testing::jsonChangeKindName(change.kind);auto *type=new QTableWidgetItem(kind);
+            // Colores del diff desde los tokens del tema (theme.h), no literales.
+            type->setForeground(change.kind==testing::JsonChangeKind::Added?QColor(QString::fromLatin1(theme::kSuccess))
+                :change.kind==testing::JsonChangeKind::Removed?QColor(QString::fromLatin1(theme::kDanger))
+                :QColor(QString::fromLatin1(theme::kWarning)));
             table->setItem(row,0,type);table->setItem(row,1,new QTableWidgetItem(change.path));table->setItem(row,2,new QTableWidgetItem(testing::jsonValueForDiff(change.before)));table->setItem(row,3,new QTableWidgetItem(testing::jsonValueForDiff(change.after)));
         }
         if(diff.truncated)limitation=QStringLiteral("La comparación se limitó a 2000 cambios y 48 niveles por seguridad.");

@@ -28,6 +28,7 @@ jobs:
             ninja-build \
             qt6-base-dev \
             qt6-base-dev-tools \
+            qt6-qpa-plugins \
             libqt6sql6-sqlite \
             libyaml-cpp-dev
 
